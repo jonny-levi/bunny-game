@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>🐰❤️ Bunny Family - Cooperative Tamagotchi</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Comic Sans MS', cursive, sans-serif;
+            background: linear-gradient(135deg, #ffb3d9 0%, #ffe4e1 50%, #f0f8ff 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            color: #6b4e7d;
+        }
+        
+        .container {
+            text-align: center;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 25px;
+            padding: 25px;
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            margin: 10px;
+            border: 3px solid #ffb3d9;
+        }
+        
+        h1 {
+            color: #ff69b4;
+            font-size: 2.2em;
+            margin-bottom: 15px;
+            text-shadow: 2px 2px 4px rgba(255, 105, 180, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .subtitle {
+            color: #9370db;
+            font-size: 1.1em;
+            margin-bottom: 20px;
+            font-style: italic;
+        }
+        
+        input {
+            font-size: 1.1em;
+            padding: 15px 20px;
+            margin: 10px;
+            border: 3px solid #ffb3d9;
+            border-radius: 30px;
+            outline: none;
+            width: 250px;
+            text-align: center;
+            background: rgba(255, 240, 245, 0.8);
+        }
+        
+        input:focus {
+            border-color: #ff69b4;
+            box-shadow: 0 0 15px rgba(255, 105, 180, 0.4);
+        }
+        
+        button {
+            font-size: 1.2em;
+            padding: 15px 35px;
+            margin: 10px;
+            background: linear-gradient(135deg, #ff69b4, #ff1493);
+            color: white;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 20px rgba(255, 105, 180, 0.4);
+            font-weight: bold;
+        }
+        
+        button:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 25px rgba(255, 105, 180, 0.5);
+        }
+        
+        button:active {
+            transform: translateY(0);
+        }
+        
+        button:disabled {
+            background: #ddd;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .game-container {
+            display: none;
+            flex-direction: column;
+            width: 100%;
+            height: 100vh;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        
+        .connection-bar {
+            background: linear-gradient(135deg, #ff69b4, #dda0dd);
+            padding: 10px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: white;
+            font-weight: bold;
+            border-radius: 15px 15px 0 0;
+        }
+        
+        .player-connection {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #00ff00;
+        }
+        
+        .disconnected { background: #ff6b6b; }
+        
+        .day-night {
+            font-size: 1.5em;
+        }
+        
+        .baby-status {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-left: 3px solid #ffb3d9;
+            border-right: 3px solid #ffb3d9;
+        }
+        
+        .baby-card {
+            background: linear-gradient(135deg, #fff0f5, #faf0e6);
+            margin: 8px 0;
+            padding: 12px;
+            border-radius: 15px;
+            border: 2px solid #ffb3d9;
+        }
+        
+        .baby-name {
+            font-weight: bold;
+            color: #ff69b4;
+            font-size: 1.1em;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .baby-stage {
+            background: #ff69b4;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+        }
+        
+        .needs-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 8px;
+            margin: 8px 0;
+        }
+        
+        .need-meter {
+            text-align: center;
+        }
+        
+        .need-label {
+            font-size: 0.8em;
+            margin-bottom: 3px;
+            font-weight: bold;
+        }
+        
+        .meter-bar {
+            width: 100%;
+            height: 8px;
+            background: #eee;
+            border-radius: 4px;
+            overflow: hidden;
+            border: 1px solid #ddd;
+        }
+        
+        .meter-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+            border-radius: 3px;
+        }
+        
+        .hunger { background: #ff6b6b; }
+        .happiness { background: #ffd93d; }
+        .energy { background: #6bcf7f; }
+        .cleanliness { background: #74c0fc; }
+        .love { background: #ff69b4; }
+        
+        .game-area {
+            flex: 1;
+            background: linear-gradient(135deg, #e8f5e8 0%, #f0f8ff 100%);
+            position: relative;
+            overflow: hidden;
+            border-left: 3px solid #ffb3d9;
+            border-right: 3px solid #ffb3d9;
+        }
+        
+        .nest-area {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            height: 200px;
+            background: radial-gradient(circle, #deb887 0%, #d2b48c 70%);
+            border-radius: 50%;
+            border: 4px solid #8b7355;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .garden-area {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 120px;
+            height: 80px;
+            background: linear-gradient(135deg, #90ee90, #98fb98);
+            border-radius: 15px;
+            border: 3px solid #228b22;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            padding: 5px;
+            cursor: pointer;
+            transition: transform 0.2s ease;
+        }
+        
+        .garden-area:hover {
+            transform: scale(1.05);
+        }
+        
+        .carrot-count {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: white;
+            padding: 3px 8px;
+            border-radius: 10px;
+            font-size: 0.9em;
+            font-weight: bold;
+            color: #228b22;
+            border: 2px solid #90ee90;
+        }
+        
+        .family-stats {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 10px;
+            border-radius: 15px;
+            border: 2px solid #ff69b4;
+        }
+        
+        .controls {
+            background: linear-gradient(135deg, #dda0dd, #plum);
+            padding: 20px;
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            border-radius: 0 0 15px 15px;
+            border: 3px solid #ffb3d9;
+            border-top: none;
+        }
+        
+        .control-btn {
+            padding: 12px 8px;
+            font-size: 1em;
+            border-radius: 20px;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: bold;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        .control-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .feed-btn { background: #ff6b6b; color: white; }
+        .play-btn { background: #ffd93d; color: #333; }
+        .sleep-btn { background: #6bcf7f; color: white; }
+        .clean-btn { background: #74c0fc; color: white; }
+        .pet-btn { background: #ff69b4; color: white; }
+        
+        .room-info {
+            background: linear-gradient(135deg, #ffe4e1, #ffd1dc);
+            padding: 20px;
+            border-radius: 15px;
+            margin: 15px 0;
+            border: 3px dashed #ffb3d9;
+        }
+        
+        .room-code {
+            font-size: 2.2em;
+            font-weight: bold;
+            color: #ff69b4;
+            letter-spacing: 4px;
+            margin: 10px 0;
+        }
+        
+        .waiting {
+            color: #9370db;
+            font-style: italic;
+            margin: 10px 0;
+            font-size: 1.1em;
+        }
+        
+        .ready-status {
+            margin: 15px 0;
+        }
+        
+        .player-status {
+            margin: 8px 0;
+            padding: 12px 20px;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.8);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .ready { 
+            background: linear-gradient(135deg, #98fb98, #90ee90); 
+            color: #006400; 
+        }
+        
+        .not-ready { 
+            background: linear-gradient(135deg, #ffd700, #ffb347); 
+            color: #8b4513; 
+        }
+        
+        .error {
+            color: #dc143c;
+            background: rgba(255, 182, 193, 0.3);
+            border: 2px solid #dc143c;
+            border-radius: 15px;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #ff69b4, #ff1493);
+            color: white;
+            padding: 15px 25px;
+            border-radius: 25px;
+            z-index: 1000;
+            font-weight: bold;
+            box-shadow: 0 5px 20px rgba(255, 105, 180, 0.4);
+            animation: slideDown 0.3s ease;
+        }
+        
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(-100%); }
+            to { transform: translateX(-50%) translateY(0); }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                width: 95%;
+                padding: 20px 15px;
+            }
+            
+            h1 {
+                font-size: 1.8em;
+            }
+            
+            input {
+                width: 90%;
+                font-size: 1em;
+            }
+            
+            .controls {
+                grid-template-columns: repeat(3, 1fr);
+                padding: 15px;
+                gap: 8px;
+            }
+            
+            .control-btn {
+                font-size: 0.9em;
+                padding: 10px 5px;
+            }
+            
+            .needs-grid {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 6px;
+            }
+            
+            .room-code {
+                font-size: 1.8em;
+                letter-spacing: 2px;
+            }
+            
+            .game-area {
+                height: 300px;
+            }
+            
+            .nest-area {
+                width: 200px;
+                height: 130px;
+            }
+            
+            .garden-area {
+                width: 80px;
+                height: 60px;
+            }
+        }
+        
+        .baby-sprite {
+            position: absolute;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            z-index: 10;
+        }
+        
+        .crying { animation: shake 0.5s infinite; }
+        
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-2px); }
+            75% { transform: translateX(2px); }
+        }
+        
+        .hearts {
+            position: absolute;
+            font-size: 0.8em;
+            color: #ff69b4;
+            animation: floatUp 2s ease-out;
+        }
+        
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-30px); }
+        }
+        
+        .selected-baby {
+            border: 3px solid #ff69b4 !important;
+            box-shadow: 0 0 15px rgba(255, 105, 180, 0.6);
+        }
+    </style>
+</head>
+<body>
+    <!-- Main Menu -->
+    <div id="mainMenu" class="container">
+        <h1>🐰❤️ Bunny Family</h1>
+        <p class="subtitle">Raise adorable bunny babies together!</p>
+        
+        <div>
+            <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
+        </div>
+        
+        <div>
+            <button onclick="createRoom()">💕 Create Family</button>
+        </div>
+        
+        <div>
+            <input type="text" id="roomCode" placeholder="Family Code" maxlength="6">
+            <br>
+            <button onclick="joinRoom()">🏠 Join Family</button>
+        </div>
+        
+        <div id="errorMessage" class="error" style="display: none;"></div>
+    </div>
+
+    <!-- Lobby -->
+    <div id="lobby" class="container" style="display: none;">
+        <h1>🐰❤️ Family Lobby</h1>
+        
+        <div class="room-info">
+            <p>👨‍👩‍👧‍👦 Family Code:</p>
+            <div id="roomCodeDisplay" class="room-code"></div>
+            <p class="waiting">Share this code with your partner!</p>
+        </div>
+        
+        <div id="playersStatus" class="ready-status">
+            <div class="waiting">Waiting for your partner...</div>
+        </div>
+        
+        <button id="readyButton" onclick="playerReady()" style="display: none;">✅ Ready to Start Family!</button>
+        
+        <div id="lobbyError" class="error" style="display: none;"></div>
+    </div>
+
+    <!-- Game -->
+    <div id="gameContainer" class="game-container">
+        <!-- Connection Bar -->
+        <div class="connection-bar">
+            <div class="player-connection">
+                <div id="player1Status" class="status-indicator"></div>
+                <span id="player1Name">Player 1</span>
+                <span>🐰⬛</span>
+            </div>
+            
+            <div class="day-night">
+                <span id="dayNightIcon">☀️</span>
+                <span id="timeDisplay">Day</span>
+            </div>
+            
+            <div class="player-connection">
+                <span>🐰⬜</span>
+                <span id="player2Name">Player 2</span>
+                <div id="player2Status" class="status-indicator"></div>
+            </div>
+        </div>
+
+        <!-- Baby Status Panel -->
+        <div class="baby-status">
+            <div id="babiesStatus">
+                <!-- Baby status cards will be populated here -->
+            </div>
+        </div>
+
+        <!-- Game Area -->
+        <div class="game-area" id="gameArea">
+            <!-- Family Stats -->
+            <div class="family-stats">
+                <div><strong>🥕 Carrots:</strong> <span id="carrotCount">0</span></div>
+                <div><strong>❤️ Family Love:</strong> <span id="familyLove">50</span></div>
+                <div><strong>👶 Generation:</strong> <span id="generation">1</span></div>
+            </div>
+
+            <!-- Garden -->
+            <div class="garden-area" onclick="harvestCarrot()">
+                <div id="gardenCarrots">
+                    <!-- Garden carrots will be populated here -->
+                </div>
+                <div class="carrot-count">🥕 <span id="gardenCount">3</span></div>
+            </div>
+
+            <!-- Nest -->
+            <div class="nest-area">
+                <!-- Babies will be positioned here -->
+            </div>
+
+            <!-- Canvas for Phaser game -->
+            <div id="phaserCanvas"></div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="control-btn feed-btn" onclick="performAction('feed')">
+                <span>🥕</span>
+                <span>Feed</span>
+            </button>
+            <button class="control-btn play-btn" onclick="performAction('play')">
+                <span>🎾</span>
+                <span>Play</span>
+            </button>
+            <button class="control-btn sleep-btn" onclick="performAction('sleep')">
+                <span>💤</span>
+                <span>Sleep</span>
+            </button>
+            <button class="control-btn clean-btn" onclick="performAction('clean')">
+                <span>🧹</span>
+                <span>Clean</span>
+            </button>
+            <button class="control-btn pet-btn" onclick="performAction('pet')">
+                <span>❤️</span>
+                <span>Pet</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Notification System -->
+    <div id="notifications"></div>
+
+    <!-- Socket.io -->
+    <script src="/socket.io/socket.io.js"></script>
+    
+    <!-- Phaser 3 -->
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
+    
+    <!-- Game Logic -->
+    <script src="game.js"></script>
+</body>
+</html>
