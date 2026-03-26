@@ -3,10 +3,11 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { Bunny } from '../objects/Bunny';
 import { wsClient, type BunnyState } from '../network/WebSocketClient';
 import { getDayNightTint, getSeason } from '../utils/time';
-import { randomBunnyName } from '../utils/names';
 import type { LifeStage } from '../config';
 
-// Shared state (simple global for demo — would use proper store in production)
+const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
+
+// Shared state
 export let gameBunnies: BunnyState[] = [];
 export let selectedBunnyId: string | null = null;
 export let activityLog: string[] = [];
@@ -17,7 +18,6 @@ export function addActivity(msg: string) {
   if (activityLog.length > 20) activityLog.pop();
 }
 
-// Create demo bunnies for offline play
 export function ensureDemoBunnies() {
   if (gameBunnies.length === 0) {
     gameBunnies = [
@@ -28,7 +28,6 @@ export function ensureDemoBunnies() {
   }
 }
 
-// Listen for server updates
 wsClient.onState((state) => { gameBunnies = state.bunnies; });
 wsClient.onEvent((event) => {
   if (event.message) addActivity(event.message);
@@ -38,8 +37,6 @@ wsClient.onEvent((event) => {
 export abstract class RoomScene extends Phaser.Scene {
   protected bunnyObjects: Bunny[] = [];
   protected dayNightOverlay!: Phaser.GameObjects.Rectangle;
-  protected seasonText!: Phaser.GameObjects.Text;
-  protected roomLabel!: Phaser.GameObjects.Text;
 
   abstract getRoomName(): string;
   abstract drawRoom(): void;
@@ -48,30 +45,20 @@ export abstract class RoomScene extends Phaser.Scene {
     ensureDemoBunnies();
     this.drawRoom();
 
-    // Day/night overlay
+    // Day/night overlay (only over play area)
     const tint = getDayNightTint();
-    this.dayNightOverlay = this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, tint.color, tint.alpha);
+    this.dayNightOverlay = this.add.rectangle(GAME_WIDTH / 2, PLAY_AREA_HEIGHT / 2, GAME_WIDTH, PLAY_AREA_HEIGHT, tint.color, tint.alpha);
     this.dayNightOverlay.setDepth(5);
 
     // Season indicator
     const season = getSeason();
-    const seasonEmojis: Record<string, string> = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '🌧️' };
-    this.seasonText = this.add.text(GAME_WIDTH - 10, 10, seasonEmojis[season] || '', {
+    const seasonEmojis: Record<string, string> = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' };
+    this.add.text(GAME_WIDTH - 40, 8, seasonEmojis[season] || '', {
       fontSize: '20px',
-    }).setOrigin(1, 0).setDepth(6);
-
-    // Room label
-    this.roomLabel = this.add.text(GAME_WIDTH / 2, 20, this.getRoomName(), {
-      fontFamily: '"Press Start 2P"',
-      fontSize: '10px',
-      color: '#fff4e0',
-      stroke: '#2d1b4e',
-      strokeThickness: 3,
-    }).setOrigin(0.5).setDepth(6);
+    }).setDepth(6);
 
     this.spawnBunnies();
 
-    // Update day/night every 60s
     this.time.addEvent({
       delay: 60000,
       loop: true,
@@ -81,8 +68,7 @@ export abstract class RoomScene extends Phaser.Scene {
       },
     });
 
-    // Fade in
-    this.cameras.main.fadeIn(400);
+    this.cameras.main.fadeIn(350);
   }
 
   protected spawnBunnies() {
@@ -90,22 +76,21 @@ export abstract class RoomScene extends Phaser.Scene {
     this.bunnyObjects = [];
 
     const alive = gameBunnies.filter(b => b.isAlive);
-    const spacing = GAME_WIDTH / (alive.length + 1);
+    const groundY = PLAY_AREA_HEIGHT - 80;
+    const spacing = (GAME_WIDTH - 100) / (alive.length + 1);
 
     alive.forEach((b, i) => {
-      const bunny = new Bunny(this, spacing * (i + 1), GAME_HEIGHT / 2 + 40, b.id, b.name, b.color, b.stage as LifeStage);
+      const bx = 50 + spacing * (i + 1);
+      const bunny = new Bunny(this, bx, groundY, b.id, b.name, b.color, b.stage as LifeStage);
       bunny.setDepth(3);
       bunny.setInteractable(() => {
         setSelectedBunny(b.id);
-        // Notify HUD
-        this.events.emit('bunnySelected', b.id);
         this.scene.get('HUDScene')?.events.emit('bunnySelected', b.id);
       });
       this.bunnyObjects.push(bunny);
     });
   }
 
-  // Optimistic stat update
   protected applyAction(action: string, bunnyId: string) {
     const b = gameBunnies.find(x => x.id === bunnyId);
     if (!b) return;
@@ -122,11 +107,9 @@ export abstract class RoomScene extends Phaser.Scene {
     }
 
     addActivity(`${playerName} ${action === 'feed' ? 'fed' : action === 'clean' ? 'cleaned' : action === 'play' ? 'played with' : action === 'sleep' ? 'put to sleep' : action === 'medicine' ? 'gave medicine to' : 'bred'} ${b.name} ${emojis[action] || ''}`);
-
     wsClient.sendAction(action, bunnyId);
   }
 
-  // Call from HUD
   doAction(action: string) {
     if (!selectedBunnyId && gameBunnies.length > 0) {
       selectedBunnyId = gameBunnies[0].id;
@@ -135,7 +118,6 @@ export abstract class RoomScene extends Phaser.Scene {
 
     this.applyAction(action, selectedBunnyId);
 
-    // Switch room based on action
     const roomMap: Record<string, string> = {
       feed: 'KitchenScene',
       clean: 'BathroomScene',
@@ -147,12 +129,11 @@ export abstract class RoomScene extends Phaser.Scene {
 
     const targetRoom = roomMap[action];
     if (targetRoom && targetRoom !== this.scene.key) {
-      this.cameras.main.fadeOut(300);
+      this.cameras.main.fadeOut(250);
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start(targetRoom);
       });
     } else {
-      // Animate the selected bunny
       const bunnyObj = this.bunnyObjects.find(b => b.bunnyId === selectedBunnyId);
       if (bunnyObj) {
         switch (action) {

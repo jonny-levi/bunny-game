@@ -50,9 +50,9 @@ export class WebSocketClient {
   async connect(playerName: string) {
     this.playerName = playerName;
     try {
-      // Call REST login first
+      // Call REST login - use /login (matches nginx proxy and backend route)
       const baseUrl = `${window.location.protocol}//${window.location.host}`;
-      const res = await fetch(`${baseUrl}/api/login`, {
+      const res = await fetch(`${baseUrl}/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: playerName }),
@@ -61,6 +61,9 @@ export class WebSocketClient {
         const data = await res.json();
         this.familyId = data.player?.familyId || data.family?.id || '';
         this.playerId = data.player?.id || '';
+        console.log('Login success:', { familyId: this.familyId, playerId: this.playerId });
+      } else {
+        console.warn('Login failed with status:', res.status);
       }
     } catch (e) {
       console.warn('Login API failed, using demo mode', e);
@@ -70,14 +73,14 @@ export class WebSocketClient {
 
   private doConnect() {
     try {
-      const params = new URLSearchParams({
-        familyId: this.familyId,
-        playerId: this.playerId,
-        playerName: this.playerName,
-      });
+      const params = new URLSearchParams();
+      if (this.familyId) params.set('familyId', this.familyId);
+      if (this.playerId) params.set('playerId', this.playerId);
+      params.set('playerName', this.playerName);
       this.ws = new WebSocket(`${WS_URL}?${params}`);
       this.ws.onopen = () => {
         this.connected = true;
+        console.log('WebSocket connected');
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
           this.reconnectTimer = null;
@@ -86,12 +89,10 @@ export class WebSocketClient {
       this.ws.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data) as GameEvent;
-          // Handle full state updates
           if (data.type === 'state' && data.family) {
             const state: GameState = { bunnies: data.family.bunnies || [], familyId: data.family.id || this.familyId };
             this.stateCallbacks.forEach(cb => cb(state));
           }
-          // Handle tick updates
           if (data.type === 'tick' && data.bunnies) {
             const state: GameState = { bunnies: data.bunnies, familyId: this.familyId };
             this.stateCallbacks.forEach(cb => cb(state));
@@ -141,5 +142,4 @@ export class WebSocketClient {
   }
 }
 
-// Singleton
 export const wsClient = new WebSocketClient();

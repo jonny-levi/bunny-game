@@ -93,19 +93,41 @@ const server = http.createServer(app);
 // WebSocket server
 const wss = new WebSocketServer({ server });
 
-wss.on('connection', (ws: WebSocket, req) => {
+wss.on('connection', async (ws: WebSocket, req) => {
   const url = new URL(req.url || '/', `http://${req.headers.host}`);
-  const familyId = url.searchParams.get('familyId');
-  const playerId = url.searchParams.get('playerId');
-  const playerName = url.searchParams.get('playerName');
+  let familyId = url.searchParams.get('familyId') || '';
+  let playerId = url.searchParams.get('playerId') || '';
+  const playerName = url.searchParams.get('playerName') || 'Anonymous';
 
-  if (!familyId || !playerId || !playerName) {
-    ws.send(JSON.stringify({ type: 'error', message: 'Missing familyId, playerId, or playerName' }));
-    ws.close();
-    return;
+  // If no familyId/playerId, try to create/find them (graceful fallback)
+  if (!familyId || !playerId) {
+    try {
+      familyId = await db.getOrCreateFamily(config.familyName);
+      const player = await db.getOrCreatePlayer(familyId, playerName);
+      playerId = player.id;
+
+      // Ensure at least 1 bunny
+      const bunnies = await db.getAllBunnies(familyId);
+      if (bunnies.length === 0) {
+        await db.insertBunny({
+          familyId,
+          name: generateBunnyName(),
+          color: 'white',
+          pattern: 'none',
+          stage: 'egg',
+        });
+      }
+      console.log(`🔌 ${playerName} auto-joined family ${familyId}`);
+    } catch (err) {
+      console.error('WS auto-join failed:', err);
+      ws.send(JSON.stringify({ type: 'error', message: 'Failed to join family' }));
+      ws.close();
+      return;
+    }
+  } else {
+    console.log(`🔌 ${playerName} connected to family ${familyId}`);
   }
 
-  console.log(`🔌 ${playerName} connected to family ${familyId}`);
   handleConnection(ws, familyId, playerId, playerName);
 });
 
@@ -128,14 +150,9 @@ async function runMigrations() {
 
 async function start() {
   try {
-    // Test DB
     await pool.query('SELECT 1');
     console.log('✅ PostgreSQL connected');
-
-    // Run migrations
     await runMigrations();
-
-    // Connect Redis
     await connectRedis();
 
     server.listen(config.port, () => {
@@ -151,13 +168,10 @@ async function start() {
 async function shutdown(signal: string) {
   console.log(`\n${signal} received. Shutting down gracefully...`);
   stopAllTicks();
-
   server.close();
   wss.close();
-
   await disconnectRedis();
   await pool.end();
-
   console.log('👋 Goodbye!');
   process.exit(0);
 }

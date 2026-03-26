@@ -4,37 +4,37 @@ export const GAME_HEIGHT = 600;
 export const WS_URL = `ws://${window.location.host}/ws`;
 
 export const COLORS = {
-  bg: 0x1a0a2e,
-  panel: 0x2d1b4e,
-  panelLight: 0x3d2b5e,
-  accent: 0xf7a072,
-  accentLight: 0xffc9a8,
-  text: 0xfff4e0,
-  textDark: 0x2d1b4e,
+  bg: 0x0f0f23,
+  panel: 0x1e1e3f,
+  panelLight: 0x2e2e5f,
+  accent: 0xff6b9d,
+  accentLight: 0xffa3c4,
+  text: 0xffffff,
+  textDark: 0x1e1e3f,
   hunger: 0xff6b6b,
   happiness: 0xffd93d,
   cleanliness: 0x6bcbff,
   energy: 0xb06bff,
   health: 0x51cf66,
-  btnFeed: 0xff8a65,
-  btnClean: 0x4fc3f7,
-  btnPlay: 0xffd54f,
-  btnSleep: 0xce93d8,
-  btnMedicine: 0x81c784,
-  btnBreed: 0xf48fb1,
+  btnFeed: 0xff7eb3,
+  btnClean: 0x7ec8e3,
+  btnPlay: 0xffd166,
+  btnSleep: 0xc39bd3,
+  btnMedicine: 0x82e0aa,
+  btnBreed: 0xf1948a,
 };
 
 export const BUNNY_COLORS: Record<string, number> = {
-  white: 0xffffff,
-  brown: 0xbb8844,
-  grey: 0x999999,
-  pink: 0xffaacc,
-  black: 0x444444,
-  spotted: 0xeeddcc,
+  white: 0xfff5ee,
+  brown: 0xd4956b,
+  grey: 0xb0b0b0,
+  pink: 0xffb6c1,
+  black: 0x555555,
+  spotted: 0xf0e0d0,
 };
 
 export const DECAY_RATES = {
-  hunger: 8 / 3600,      // per second
+  hunger: 8 / 3600,
   happiness: 5 / 3600,
   cleanliness: 4 / 3600,
   energy: 6 / 3600,

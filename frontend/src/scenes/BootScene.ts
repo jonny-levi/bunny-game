@@ -8,34 +8,38 @@ export class BootScene extends Phaser.Scene {
     const cx = GAME_WIDTH / 2;
     const cy = GAME_HEIGHT / 2;
 
+    this.add.rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0x1a1a3e);
+
     this.add.text(cx, cy - 80, '🐰 Bunny Family 🐰', {
-      fontFamily: '"Press Start 2P"',
-      fontSize: '18px',
-      color: '#f7a072',
-      stroke: '#2d1b4e',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '28px',
+      color: '#ff6b9d',
+      stroke: '#1a1a3e',
       strokeThickness: 4,
+      fontStyle: 'bold',
     }).setOrigin(0.5);
 
-    const barFill = this.add.rectangle(cx - 148, cy, 0, 16, COLORS.accent).setOrigin(0, 0.5);
-    this.add.rectangle(cx, cy, 300, 20, 0x222222).setStrokeStyle(2, COLORS.accent);
+    // Modern loading bar
+    this.add.rectangle(cx, cy, 300, 16, 0x333355).setStrokeStyle(2, 0xff6b9d, 0.5);
+    const barFill = this.add.rectangle(cx - 148, cy, 0, 12, 0xff6b9d).setOrigin(0, 0.5);
 
-    const statusText = this.add.text(cx, cy + 30, 'Loading...', {
-      fontFamily: '"Press Start 2P"',
-      fontSize: '8px',
-      color: '#fff4e0',
+    const statusText = this.add.text(cx, cy + 25, 'Loading...', {
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '12px',
+      color: '#ffffff',
     }).setOrigin(0.5);
 
     let progress = 0;
     this.time.addEvent({
-      delay: 30,
+      delay: 25,
       repeat: 30,
       callback: () => {
         progress += 1 / 30;
         barFill.width = 296 * Math.min(progress, 1);
         statusText.setText(`Loading... ${Math.floor(progress * 100)}%`);
         if (progress >= 1) {
-          statusText.setText('Ready!');
-          this.time.delayedCall(300, () => {
+          statusText.setText('Ready! ✨');
+          this.time.delayedCall(250, () => {
             this.scene.start('LoginScene');
           });
         }
