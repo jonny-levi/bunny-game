@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bunny-redis
+  namespace: bunny-game
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bunny-redis
+  template:
+    metadata:
+      labels:
+        app: bunny-redis
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: worker-node02
+      containers:
+      - name: redis
+        image: redis:7-alpine
+        ports:
+        - containerPort: 6379
+        volumeMounts:
+        - name: data
+          mountPath: /data
+      volumes:
+      - name: data
+        emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bunny-redis
+  namespace: bunny-game
+spec:
+  selector:
+    app: bunny-redis
+  ports:
+  - port: 6379
+    targetPort: 6379

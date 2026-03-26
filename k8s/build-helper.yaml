@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: build-helper
+  namespace: bunny-game
+spec:
+  nodeSelector:
+    topology.kubernetes.io/esxi: esxi2
+  containers:
+  - name: helper
+    image: busybox
+    command: ["sleep", "3600"]
+    volumeMounts:
+    - name: context
+      mountPath: /context
+  volumes:
+  - name: context
+    persistentVolumeClaim:
+      claimName: build-context
+  restartPolicy: Never

@@ -1,0 +1,28 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: kaniko-backend
+  namespace: bunny-game
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      nodeSelector:
+        topology.kubernetes.io/esxi: esxi2
+      containers:
+      - name: kaniko
+        image: gcr.io/kaniko-project/executor:latest
+        args:
+        - "--context=dir:///context"
+        - "--dockerfile=/context/Dockerfile.backend"
+        - "--destination=172.20.10.120:5000/bunny-family-backend:latest"
+        - "--insecure"
+        - "--skip-tls-verify"
+        volumeMounts:
+        - name: context
+          mountPath: /context
+      restartPolicy: Never
+      volumes:
+      - name: context
+        persistentVolumeClaim:
+          claimName: build-context

@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bunny-frontend
+  namespace: bunny-game
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: bunny-frontend
+  template:
+    metadata:
+      labels:
+        app: bunny-frontend
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: worker-node01
+      containers:
+      - name: frontend
+        image: 172.20.10.120:5000/bunny-frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: bunny-frontend
+  namespace: bunny-game
+spec:
+  type: LoadBalancer
+  selector:
+    app: bunny-frontend
+  ports:
+  - port: 80
+    targetPort: 80
