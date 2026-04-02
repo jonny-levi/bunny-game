@@ -1,0 +1,67 @@
+# Production-optimized Dockerfile for Bunny Family Game
+# Multi-stage build for smaller image size and better security
+
+# Stage 1: Build stage
+FROM node:18-alpine AS builder
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files
+COPY backend/package*.json ./backend/
+
+# Install dependencies (including dev dependencies for build)
+RUN cd backend && npm ci --include=dev
+
+# Copy source code
+COPY backend/ ./backend/
+COPY frontend/ ./frontend/
+
+# Stage 2: Production stage
+FROM node:18-alpine AS production
+
+# Install security updates and required packages
+RUN apk update && apk upgrade && apk add --no-cache \
+    wget \
+    dumb-init \
+    && rm -rf /var/cache/apk/*
+
+# Create app user and group
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S bunnyuser -u 1001 -G nodejs
+
+# Set working directory
+WORKDIR /app
+
+# Copy package files and install production dependencies only
+COPY backend/package*.json ./backend/
+RUN cd backend && npm ci --omit=dev --cache .npm --prefer-offline
+
+# Copy application files from builder
+COPY --from=builder --chown=bunnyuser:nodejs /app/backend/ ./backend/
+COPY --from=builder --chown=bunnyuser:nodejs /app/frontend/ ./frontend/
+
+# Remove npm cache and unnecessary files
+RUN cd backend && npm cache clean --force && \
+    rm -rf .npm /tmp/* /var/tmp/* /root/.npm
+
+# Switch to non-root user
+USER bunnyuser
+
+# Expose port
+EXPOSE 3000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget --no-verbose --tries=1 --spider http://localhost:3000/health || exit 1
+
+# Use dumb-init to handle signals properly
+ENTRYPOINT ["dumb-init", "--"]
+
+# Start the application (Redis-enabled version for production)
+CMD ["node", "backend/server-redis.js"]
+
+# Labels for better container management
+LABEL maintainer="Bunny Family Team"
+LABEL version="1.0.0"
+LABEL description="Production Docker image for Bunny Family cooperative Tamagotchi game"

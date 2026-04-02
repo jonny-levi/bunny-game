@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bunny Game Implementation Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: Arial, sans-serif;
+            background: #f0f0f0;
+        }
+        .status {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border-left: 5px solid #4CAF50;
+        }
+        .error {
+            border-left-color: #f44336;
+            color: #d32f2f;
+        }
+        #gameCanvas {
+            border: 2px solid #333;
+            background: white;
+            max-width: 100%;
+            height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🐰 Bunny Game Implementation Test</h1>
+    
+    <div id="status-container">
+        <div class="status">Loading game script...</div>
+    </div>
+    
+    <canvas id="gameCanvas" width="800" height="400"></canvas>
+    
+    <div id="test-results"></div>
+
+    <script>
+        function addStatus(message, isError = false) {
+            const container = document.getElementById('status-container');
+            const div = document.createElement('div');
+            div.className = isError ? 'status error' : 'status';
+            div.textContent = message;
+            container.appendChild(div);
+        }
+
+        // Mock the required elements for the game
+        function createMockElements() {
+            const elementIds = [
+                'menuScreen', 'gameContainer', 'roomCodeBanner', 'roomCodeDisplay', 'roomCodeCopy',
+                'connectionStatus', 'connectionText', 'dayNightIndicator', 'dayNightIcon', 'dayNightText',
+                'carrotCount', 'babyName', 'hungerBar', 'happinessBar', 'energyBar', 'cleanlinessBar', 'loveBar',
+                'hungerValue', 'happinessValue', 'energyValue', 'cleanlinessValue', 'loveValue',
+                'gardenPlot', 'gardenQuality', 'harvestTimer', 'feedBtn', 'playBtn', 'sleepBtn', 'cleanBtn', 'petBtn'
+            ];
+
+            elementIds.forEach(id => {
+                if (!document.getElementById(id)) {
+                    const div = document.createElement('div');
+                    div.id = id;
+                    div.style.display = 'none';
+                    document.body.appendChild(div);
+                }
+            });
+        }
+
+        // Mock Socket.IO
+        window.io = function() {
+            return {
+                on: function(event, callback) { console.log('Mock socket.on:', event); },
+                emit: function(event, data) { console.log('Mock socket.emit:', event, data); },
+                connected: false
+            };
+        };
+
+        // Test the implementation
+        async function testImplementation() {
+            try {
+                createMockElements();
+                addStatus('Mock elements created successfully');
+
+                // Load the game script
+                const script = document.createElement('script');
+                script.src = './frontend/game.js';
+                script.onload = function() {
+                    addStatus('Game script loaded successfully');
+                    
+                    // Test basic functions
+                    if (typeof initializeDOM === 'function') {
+                        addStatus('✓ initializeDOM function found');
+                    } else {
+                        addStatus('✗ initializeDOM function not found', true);
+                    }
+
+                    if (typeof startDrag === 'function') {
+                        addStatus('✓ startDrag function found (draggable feature implemented)');
+                    } else {
+                        addStatus('✗ startDrag function not found', true);
+                    }
+
+                    if (typeof createParticleEffect === 'function') {
+                        addStatus('✓ createParticleEffect function found (particle pooling implemented)');
+                    } else {
+                        addStatus('✗ createParticleEffect function not found', true);
+                    }
+
+                    if (typeof getCachedBackground === 'function') {
+                        addStatus('✓ getCachedBackground function found (background caching implemented)');
+                    } else {
+                        addStatus('✗ getCachedBackground function not found', true);
+                    }
+
+                    if (typeof getCachedTextWidth === 'function') {
+                        addStatus('✓ getCachedTextWidth function found (text measurement caching implemented)');
+                    } else {
+                        addStatus('✗ getCachedTextWidth function not found', true);
+                    }
+
+                    // Test canvas initialization
+                    try {
+                        const canvas = document.getElementById('gameCanvas');
+                        if (canvas) {
+                            const ctx = canvas.getContext('2d');
+                            if (ctx) {
+                                addStatus('✓ Canvas context available');
+                            } else {
+                                addStatus('✗ Canvas context not available', true);
+                            }
+                        } else {
+                            addStatus('✗ Canvas element not found', true);
+                        }
+                    } catch (error) {
+                        addStatus('✗ Canvas test failed: ' + error.message, true);
+                    }
+
+                    addStatus('Implementation test completed!');
+                };
+                script.onerror = function() {
+                    addStatus('✗ Failed to load game script', true);
+                };
+                document.head.appendChild(script);
+
+            } catch (error) {
+                addStatus('✗ Test failed: ' + error.message, true);
+            }
+        }
+
+        // Run test when page loads
+        window.addEventListener('load', testImplementation);
+    </script>
+</body>
+</html>

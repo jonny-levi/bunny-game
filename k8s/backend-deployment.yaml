@@ -1,0 +1,75 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bunny-backend
+  namespace: bunny-game
+  labels:
+    app: bunny-backend
+    component: backend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: bunny-backend
+  template:
+    metadata:
+      labels:
+        app: bunny-backend
+        component: backend
+    spec:
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app
+                  operator: In
+                  values:
+                  - bunny-backend
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: backend
+        image: 172.20.10.120:5000/bunny-game:v7-2d
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3001
+          protocol: TCP
+        env:
+        - name: PORT
+          value: "3001"
+        - name: DATABASE_URL
+          value: postgresql://bunny:bunny123@bunny-postgres:5432/bunny_family
+        - name: REDIS_URL
+          value: redis://bunny-redis:6379
+        - name: NODE_ENV
+          value: production
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3001
+          initialDelaySeconds: 30
+          periodSeconds: 30
+          timeoutSeconds: 10
+          failureThreshold: 3
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: false

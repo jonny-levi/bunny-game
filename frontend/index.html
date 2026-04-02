@@ -3,38 +3,77 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>🐰❤️ Bunny Family - Cooperative Tamagotchi</title>
+    <title>🐰❤️ Bunny Family - Cooperative 2D Tamagotchi</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        :root {
+            --primary-pink: #ffb3d9;
+            --secondary-pink: #ff69b4;
+            --primary-purple: #9370db;
+            --soft-white: #fffef7;
+            --warm-cream: #fdf6e3;
+            --gentle-green: #c8e6c9;
+            --sky-blue: #e3f2fd;
+            --sunset-orange: #ffe0b2;
+            --shadow: rgba(0, 0, 0, 0.1);
+            --text-dark: #4a4a4a;
+            --bunny-black: #2c2c2c;
+            --bunny-white: #ffffff;
+            --heart-red: #ff6b6b;
+            --carrot-orange: #ff9800;
         }
         
         body {
-            font-family: 'Comic Sans MS', cursive, sans-serif;
-            background: linear-gradient(135deg, #ffb3d9 0%, #ffe4e1 50%, #f0f8ff 100%);
+            font-family: 'Comic Sans MS', 'Chalkboard SE', 'Bradley Hand', cursive, sans-serif;
+            background: linear-gradient(135deg, var(--sky-blue) 0%, var(--gentle-green) 50%, var(--sunset-orange) 100%);
             min-height: 100vh;
+            color: var(--text-dark);
+            touch-action: manipulation;
+            overflow: hidden;
+        }
+        
+        /* ===== LOBBY SCREEN ===== */
+        .menu-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1000;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
-            color: #6b4e7d;
+            background: linear-gradient(135deg, var(--primary-pink) 0%, var(--warm-cream) 50%, var(--sky-blue) 100%);
+            animation: gentlePulse 4s ease-in-out infinite;
+        }
+        
+        @keyframes gentlePulse {
+            0%, 100% { background: linear-gradient(135deg, var(--primary-pink) 0%, var(--warm-cream) 50%, var(--sky-blue) 100%); }
+            50% { background: linear-gradient(135deg, var(--primary-pink) 0%, var(--sunset-orange) 50%, var(--sky-blue) 100%); }
         }
         
         .container {
             text-align: center;
             background: rgba(255, 255, 255, 0.95);
             border-radius: 25px;
-            padding: 25px;
-            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            box-shadow: 0 20px 40px var(--shadow);
             margin: 10px;
-            border: 3px solid #ffb3d9;
+            border: 3px solid var(--primary-pink);
+            max-width: 400px;
+            width: 90vw;
+            backdrop-filter: blur(10px);
         }
         
         h1 {
-            color: #ff69b4;
+            color: var(--secondary-pink);
             font-size: 2.2em;
             margin-bottom: 15px;
             text-shadow: 2px 2px 4px rgba(255, 105, 180, 0.3);
@@ -44,567 +83,1369 @@
             gap: 10px;
         }
         
+        .bunny-icon {
+            font-size: 1.2em;
+            animation: bounce 2s ease-in-out infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 20%, 50%, 80%, 100% { transform: translateY(0); }
+            40% { transform: translateY(-10px); }
+            60% { transform: translateY(-5px); }
+        }
+        
         .subtitle {
-            color: #9370db;
+            color: var(--primary-purple);
             font-size: 1.1em;
-            margin-bottom: 20px;
+            margin-bottom: 15px;
             font-style: italic;
+        }
+        
+        .description {
+            color: var(--secondary-pink);
+            font-size: 0.95em;
+            margin-bottom: 25px;
+            font-weight: bold;
+            text-shadow: 1px 1px 2px rgba(255, 105, 180, 0.3);
+        }
+        
+        /* Decorative Floating Elements */
+        .decorative-bunny {
+            position: absolute;
+            font-size: 3em;
+            animation: bunnyFloat 6s ease-in-out infinite;
+            z-index: 1;
+        }
+        
+        .left-bunny {
+            top: 15%;
+            left: 10%;
+            animation-delay: 0s;
+        }
+        
+        .right-bunny {
+            top: 20%;
+            right: 10%;
+            animation-delay: 2s;
+        }
+        
+        @keyframes bunnyFloat {
+            0%, 100% { transform: translateY(0px) rotate(-5deg); }
+            33% { transform: translateY(-10px) rotate(5deg); }
+            66% { transform: translateY(-5px) rotate(0deg); }
+        }
+        
+        .floating-heart {
+            position: absolute;
+            font-size: 1.5em;
+            animation: heartFloat 8s ease-in-out infinite;
+            z-index: 1;
+        }
+        
+        .heart1 {
+            top: 30%;
+            left: 15%;
+            animation-delay: 1s;
+        }
+        
+        .heart2 {
+            top: 70%;
+            right: 20%;
+            animation-delay: 3s;
+        }
+        
+        .heart3 {
+            top: 60%;
+            left: 80%;
+            animation-delay: 5s;
+        }
+        
+        @keyframes heartFloat {
+            0%, 100% { transform: translateY(0px) scale(1); opacity: 0.7; }
+            50% { transform: translateY(-15px) scale(1.2); opacity: 1; }
+        }
+        
+        .floating-carrot {
+            position: absolute;
+            font-size: 1.3em;
+            animation: carrotSway 5s ease-in-out infinite;
+            z-index: 1;
+        }
+        
+        .carrot1 {
+            top: 45%;
+            left: 5%;
+            animation-delay: 2s;
+        }
+        
+        .carrot2 {
+            top: 80%;
+            right: 15%;
+            animation-delay: 4s;
+        }
+        
+        @keyframes carrotSway {
+            0%, 100% { transform: translateX(0px) rotate(-10deg); }
+            50% { transform: translateX(10px) rotate(10deg); }
+        }
+        
+        .sparkle {
+            position: absolute;
+            font-size: 1.2em;
+            animation: sparkleShine 4s ease-in-out infinite;
+            z-index: 1;
+        }
+        
+        .sparkle1 {
+            top: 25%;
+            left: 70%;
+            animation-delay: 0.5s;
+        }
+        
+        .sparkle2 {
+            top: 75%;
+            left: 25%;
+            animation-delay: 2.5s;
+        }
+        
+        .sparkle3 {
+            top: 40%;
+            right: 5%;
+            animation-delay: 4.5s;
+        }
+        
+        @keyframes sparkleShine {
+            0%, 100% { opacity: 0.3; transform: scale(0.8) rotate(0deg); }
+            50% { opacity: 1; transform: scale(1.3) rotate(180deg); }
         }
         
         input {
             font-size: 1.1em;
             padding: 15px 20px;
             margin: 10px;
-            border: 3px solid #ffb3d9;
-            border-radius: 30px;
+            border: 3px solid var(--primary-pink);
+            border-radius: 25px;
             outline: none;
-            width: 250px;
+            width: 100%;
+            max-width: 300px;
             text-align: center;
             background: rgba(255, 240, 245, 0.8);
+            transition: all 0.3s ease;
         }
         
         input:focus {
-            border-color: #ff69b4;
-            box-shadow: 0 0 15px rgba(255, 105, 180, 0.4);
+            border-color: var(--secondary-pink);
+            box-shadow: 0 0 20px rgba(255, 105, 180, 0.4);
+            transform: scale(1.05);
         }
         
         button {
-            font-size: 1.2em;
-            padding: 15px 35px;
+            font-size: 1.1em;
+            padding: 15px 30px;
             margin: 10px;
-            background: linear-gradient(135deg, #ff69b4, #ff1493);
+            background: linear-gradient(135deg, var(--secondary-pink), var(--primary-pink));
             color: white;
             border: none;
-            border-radius: 30px;
+            border-radius: 25px;
             cursor: pointer;
             transition: all 0.3s ease;
-            box-shadow: 0 6px 20px rgba(255, 105, 180, 0.4);
-            font-weight: bold;
+            box-shadow: 0 5px 15px var(--shadow);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
         }
         
         button:hover {
             transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(255, 105, 180, 0.5);
+            box-shadow: 0 8px 25px var(--shadow);
         }
         
         button:active {
-            transform: translateY(0);
+            transform: translateY(0px);
+            box-shadow: 0 3px 10px var(--shadow);
         }
         
-        button:disabled {
-            background: #ddd;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        
-        .game-container {
-            display: none;
-            flex-direction: column;
-            width: 100%;
-            height: 100vh;
-            max-width: 900px;
-            margin: 0 auto;
-        }
-        
-        .connection-bar {
-            background: linear-gradient(135deg, #ff69b4, #dda0dd);
-            padding: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            color: white;
-            font-weight: bold;
-            border-radius: 15px 15px 0 0;
-        }
-        
-        .player-connection {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-        
-        .status-indicator {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #00ff00;
-        }
-        
-        .disconnected { background: #ff6b6b; }
-        
-        .day-night {
-            font-size: 1.5em;
-        }
-        
-        .baby-status {
-            background: rgba(255, 255, 255, 0.9);
-            padding: 15px;
-            border-left: 3px solid #ffb3d9;
-            border-right: 3px solid #ffb3d9;
-        }
-        
-        .baby-card {
-            background: linear-gradient(135deg, #fff0f5, #faf0e6);
-            margin: 8px 0;
-            padding: 12px;
-            border-radius: 15px;
-            border: 2px solid #ffb3d9;
-        }
-        
-        .baby-name {
-            font-weight: bold;
-            color: #ff69b4;
-            font-size: 1.1em;
-            margin-bottom: 8px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-        
-        .baby-stage {
-            background: #ff69b4;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 10px;
-            font-size: 0.8em;
-        }
-        
-        .needs-grid {
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 8px;
-            margin: 8px 0;
-        }
-        
-        .need-meter {
-            text-align: center;
-        }
-        
-        .need-label {
-            font-size: 0.8em;
-            margin-bottom: 3px;
-            font-weight: bold;
-        }
-        
-        .meter-bar {
-            width: 100%;
-            height: 8px;
-            background: #eee;
-            border-radius: 4px;
-            overflow: hidden;
-            border: 1px solid #ddd;
-        }
-        
-        .meter-fill {
-            height: 100%;
-            transition: width 0.3s ease;
-            border-radius: 3px;
-        }
-        
-        .hunger { background: #ff6b6b; }
-        .happiness { background: #ffd93d; }
-        .energy { background: #6bcf7f; }
-        .cleanliness { background: #74c0fc; }
-        .love { background: #ff69b4; }
-        
-        .game-area {
-            flex: 1;
-            background: linear-gradient(135deg, #e8f5e8 0%, #f0f8ff 100%);
-            position: relative;
-            overflow: hidden;
-            border-left: 3px solid #ffb3d9;
-            border-right: 3px solid #ffb3d9;
-        }
-        
-        .nest-area {
+        button::before {
+            content: '';
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%);
-            width: 300px;
-            height: 200px;
-            background: radial-gradient(circle, #deb887 0%, #d2b48c 70%);
+            width: 0;
+            height: 0;
             border-radius: 50%;
-            border: 4px solid #8b7355;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            background: rgba(255, 255, 255, 0.3);
+            transition: width 0.6s, height 0.6s, top 0.6s, left 0.6s;
         }
         
-        .garden-area {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 120px;
-            height: 80px;
-            background: linear-gradient(135deg, #90ee90, #98fb98);
-            border-radius: 15px;
-            border: 3px solid #228b22;
+        button:active::before {
+            width: 300px;
+            height: 300px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+        
+        /* ===== MAIN GAME UI ===== */
+        .game-container {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            flex-direction: column;
+        }
+        
+        /* Room Code Banner — compact floating circle */
+        .room-code-banner {
+            position: fixed;
+            top: 55px;
+            left: 10px;
+            z-index: 200;
             display: flex;
-            flex-wrap: wrap;
             align-items: center;
-            justify-content: center;
-            padding: 5px;
+            gap: 0;
             cursor: pointer;
-            transition: transform 0.2s ease;
         }
         
-        .garden-area:hover {
-            transform: scale(1.05);
+        .room-code-content {
+            display: flex;
+            align-items: center;
+            gap: 0;
+            color: white;
+        }
+        
+        .room-code-icon {
+            display: none;
+        }
+        
+        .room-code-text {
+            background: linear-gradient(135deg, var(--secondary-pink), var(--primary-purple));
+            border-radius: 20px;
+            padding: 6px 14px;
+            box-shadow: 0 3px 12px rgba(255, 105, 180, 0.5);
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .room-code-label {
+            display: none;
+        }
+        
+        .room-code-value {
+            font-size: 0.95em;
+            font-weight: 800;
+            letter-spacing: 0.15em;
+            font-family: 'Courier New', monospace;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+        
+        .room-code-share {
+            display: none;
+        }
+        
+        .room-code-copy {
+            background: rgba(255, 255, 255, 0.25);
+            border: none;
+            color: white;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            font-size: 0.85em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-left: 4px;
+            padding: 0;
+        }
+        
+        .room-code-copy:hover {
+            background: rgba(255, 255, 255, 0.4);
+            transform: scale(1.1);
+        }
+        
+        .room-code-copy:active {
+            transform: scale(0.95);
+        }
+
+        /* Top Bar */
+        .top-bar {
+            background: linear-gradient(135deg, var(--soft-white), var(--warm-cream));
+            padding: 10px 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px var(--shadow);
+            border-bottom: 2px solid var(--primary-pink);
+            z-index: 100;
+            position: relative;
+        }
+        
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.9em;
+            font-weight: bold;
+        }
+        
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            animation: pulse 2s ease-in-out infinite;
+        }
+        
+        .status-dot.connected { background: #4caf50; }
+        .status-dot.disconnected { background: #f44336; }
+        .status-dot.waiting { background: #ff9800; }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+        
+        .day-night-indicator {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 1.2em;
+            padding: 8px 15px;
+            border-radius: 20px;
+            background: var(--sky-blue);
+            box-shadow: inset 0 2px 5px var(--shadow);
+        }
+        
+        .day-night-indicator.night {
+            background: linear-gradient(135deg, #2c3e50, #34495e);
+            color: #ecf0f1;
+        }
+        
+        .family-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 0.9em;
         }
         
         .carrot-count {
-            position: absolute;
-            bottom: -25px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: white;
-            padding: 3px 8px;
-            border-radius: 10px;
-            font-size: 0.9em;
-            font-weight: bold;
-            color: #228b22;
-            border: 2px solid #90ee90;
-        }
-        
-        .family-stats {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(255, 255, 255, 0.9);
-            padding: 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--carrot-orange);
+            color: white;
+            padding: 5px 12px;
             border-radius: 15px;
-            border: 2px solid #ff69b4;
-        }
-        
-        .controls {
-            background: linear-gradient(135deg, #dda0dd, #plum);
-            padding: 20px;
-            display: grid;
-            grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-            border-radius: 0 0 15px 15px;
-            border: 3px solid #ffb3d9;
-            border-top: none;
-        }
-        
-        .control-btn {
-            padding: 12px 8px;
-            font-size: 1em;
-            border-radius: 20px;
-            border: none;
-            cursor: pointer;
-            transition: all 0.3s ease;
             font-weight: bold;
+            box-shadow: 0 2px 8px rgba(255, 152, 0, 0.3);
+        }
+        
+        /* Main Game Area */
+        .game-area {
+            flex: 1;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        /* Nest Area */
+        .nest-area {
+            flex: 1;
+            position: relative;
+            background: linear-gradient(135deg, var(--gentle-green) 0%, var(--warm-cream) 100%);
             display: flex;
             flex-direction: column;
+            min-height: 0;
+        }
+        
+        /* Canvas for 2D Bunny Graphics */
+        #gameCanvas {
+            flex: 1;
+            width: 100%;
+            height: 100%;
+            min-height: 400px;
+            background: transparent;
+            cursor: pointer;
+            border: none;
+            outline: none;
+        }
+        
+        /* Status Bars */
+        .status-panel {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 15px;
+            margin: 10px;
+            border-radius: 20px;
+            box-shadow: 0 5px 20px var(--shadow);
+            border: 2px solid var(--primary-pink);
+            backdrop-filter: blur(5px);
+        }
+        
+        .baby-status {
+            margin-bottom: 20px;
+        }
+        
+        .baby-name {
+            font-size: 1.3em;
+            font-weight: bold;
+            color: var(--secondary-pink);
+            text-align: center;
+            margin-bottom: 10px;
+            text-shadow: 1px 1px 2px var(--shadow);
+        }
+        
+        .status-bar {
+            margin: 8px 0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-label {
+            font-weight: bold;
+            width: 90px;
+            font-size: 0.9em;
+            display: flex;
             align-items: center;
             gap: 5px;
         }
         
-        .control-btn:hover {
-            transform: translateY(-2px);
+        .status-fill {
+            flex: 1;
+            height: 20px;
+            border-radius: 10px;
+            background: #e0e0e0;
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 2px 5px var(--shadow);
         }
         
-        .feed-btn { background: #ff6b6b; color: white; }
-        .play-btn { background: #ffd93d; color: #333; }
-        .sleep-btn { background: #6bcf7f; color: white; }
-        .clean-btn { background: #74c0fc; color: white; }
-        .pet-btn { background: #ff69b4; color: white; }
-        
-        .room-info {
-            background: linear-gradient(135deg, #ffe4e1, #ffd1dc);
-            padding: 20px;
-            border-radius: 15px;
-            margin: 15px 0;
-            border: 3px dashed #ffb3d9;
+        .status-progress {
+            height: 100%;
+            border-radius: 10px;
+            transition: all 0.5s ease;
+            position: relative;
+            overflow: hidden;
         }
         
-        .room-code {
-            font-size: 2.2em;
+        .status-progress::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.4), transparent);
+            animation: shimmer 2s infinite;
+        }
+        
+        @keyframes shimmer {
+            0% { left: -100%; }
+            100% { left: 100%; }
+        }
+        
+        .status-hunger .status-progress { background: linear-gradient(135deg, #ff6b6b, #ff8e53); }
+        .status-happiness .status-progress { background: linear-gradient(135deg, #feca57, #ff9ff3); }
+        .status-energy .status-progress { background: linear-gradient(135deg, #48dbfb, #0abde3); }
+        .status-cleanliness .status-progress { background: linear-gradient(135deg, #1dd1a1, #55a3ff); }
+        .status-love .status-progress { background: linear-gradient(135deg, #fd79a8, #fdcb6e); }
+        
+        .status-value {
             font-weight: bold;
-            color: #ff69b4;
-            letter-spacing: 4px;
-            margin: 10px 0;
+            width: 40px;
+            text-align: right;
+            font-size: 0.9em;
         }
         
-        .waiting {
-            color: #9370db;
-            font-style: italic;
-            margin: 10px 0;
+        /* Garden Sidebar */
+        .garden-panel {
+            width: 120px;
+            background: linear-gradient(135deg, var(--gentle-green), var(--sunset-orange));
+            padding: 15px 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+            box-shadow: -5px 0 20px var(--shadow);
+        }
+        
+        .garden-title {
+            font-weight: bold;
+            color: var(--text-dark);
             font-size: 1.1em;
+            text-shadow: 1px 1px 2px rgba(255, 255, 255, 0.5);
         }
         
-        .ready-status {
-            margin: 15px 0;
-        }
-        
-        .player-status {
-            margin: 8px 0;
-            padding: 12px 20px;
-            border-radius: 25px;
-            background: rgba(255, 255, 255, 0.8);
+        .garden-plot {
+            width: 80px;
+            height: 80px;
+            background: #8b4513;
+            border-radius: 10px;
+            border: 3px solid #654321;
             display: flex;
             align-items: center;
-            gap: 10px;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
         }
         
-        .ready { 
-            background: linear-gradient(135deg, #98fb98, #90ee90); 
-            color: #006400; 
+        .garden-plot:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px var(--shadow);
         }
         
-        .not-ready { 
-            background: linear-gradient(135deg, #ffd700, #ffb347); 
-            color: #8b4513; 
+        .carrot-sprite {
+            font-size: 2em;
+            animation: sway 3s ease-in-out infinite;
         }
         
-        .error {
-            color: #dc143c;
-            background: rgba(255, 182, 193, 0.3);
-            border: 2px solid #dc143c;
-            border-radius: 15px;
+        @keyframes sway {
+            0%, 100% { transform: rotate(-5deg); }
+            50% { transform: rotate(5deg); }
+        }
+        
+        .garden-info {
+            text-align: center;
+            font-size: 0.8em;
+            background: rgba(255, 255, 255, 0.8);
+            padding: 8px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px var(--shadow);
+        }
+        
+        .harvest-timer {
+            color: var(--carrot-orange);
+            font-weight: bold;
+        }
+        
+        /* Action Buttons */
+        .action-panel {
+            background: linear-gradient(135deg, var(--soft-white), var(--warm-cream));
             padding: 15px;
-            margin: 15px 0;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            flex-wrap: wrap;
+            box-shadow: 0 -5px 20px var(--shadow);
+            border-top: 2px solid var(--primary-pink);
         }
         
-        .notification {
+        .action-btn {
+            background: linear-gradient(135deg, var(--secondary-pink), var(--primary-pink));
+            color: white;
+            border: none;
+            border-radius: 20px;
+            padding: 12px 20px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px var(--shadow);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            min-width: 100px;
+        }
+        
+        .action-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px var(--shadow);
+        }
+        
+        .action-btn:active {
+            transform: translateY(-1px);
+            box-shadow: 0 3px 10px var(--shadow);
+        }
+        
+        .action-btn:disabled {
+            background: linear-gradient(135deg, #bbb, #999);
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: 0 2px 5px var(--shadow);
+        }
+        
+        .action-btn.feed { background: linear-gradient(135deg, var(--carrot-orange), #f57c00); }
+        .action-btn.play { background: linear-gradient(135deg, #4caf50, #388e3c); }
+        .action-btn.sleep { background: linear-gradient(135deg, #3f51b5, #303f9f); }
+        .action-btn.clean { background: linear-gradient(135deg, #00bcd4, #0097a7); }
+        .action-btn.pet { background: linear-gradient(135deg, var(--heart-red), #e53935); }
+        .action-btn.cave { background: linear-gradient(135deg, #8d6e63, #5d4037); }
+        .action-btn.shop { background: linear-gradient(135deg, var(--primary-purple), #7b1fa2); }
+        
+        /* Floating Hearts and Effects */
+        .floating-effect {
+            position: absolute;
+            pointer-events: none;
+            font-size: 1.5em;
+            animation: floatUp 2s ease-out forwards;
+            z-index: 50;
+        }
+        
+        @keyframes floatUp {
+            0% {
+                opacity: 1;
+                transform: translateY(0) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translateY(-100px) scale(1.5);
+            }
+        }
+        
+        /* Growth Celebration */
+        .growth-celebration {
             position: fixed;
-            top: 20px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(135deg, var(--primary-pink), var(--secondary-pink));
+            color: white;
+            padding: 20px 30px;
+            border-radius: 20px;
+            font-size: 1.3em;
+            font-weight: bold;
+            text-align: center;
+            box-shadow: 0 10px 30px var(--shadow);
+            z-index: 200;
+            animation: celebrationPop 3s ease-out forwards;
+        }
+        
+        @keyframes celebrationPop {
+            0% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0);
+            }
+            20% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1.2);
+            }
+            80% {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+            100% {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+        
+        /* Cooperative Bonus Indicator */
+        .coop-bonus {
+            position: fixed;
+            top: 20%;
             left: 50%;
             transform: translateX(-50%);
-            background: linear-gradient(135deg, #ff69b4, #ff1493);
-            color: white;
+            background: linear-gradient(135deg, #ffd700, #ffb300);
+            color: var(--text-dark);
             padding: 15px 25px;
-            border-radius: 25px;
-            z-index: 1000;
+            border-radius: 15px;
             font-weight: bold;
-            box-shadow: 0 5px 20px rgba(255, 105, 180, 0.4);
-            animation: slideDown 0.3s ease;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(255, 215, 0, 0.4);
+            z-index: 150;
+            animation: coopBonusShow 4s ease-out forwards;
         }
         
-        @keyframes slideDown {
-            from { transform: translateX(-50%) translateY(-100%); }
-            to { transform: translateX(-50%) translateY(0); }
+        @keyframes coopBonusShow {
+            0%, 10% {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
+            20%, 80% {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0);
+            }
+            100% {
+                opacity: 0;
+                transform: translateX(-50%) translateY(-20px);
+            }
         }
         
+        /* Mobile Responsive Design */
         @media (max-width: 768px) {
-            .container {
-                width: 95%;
-                padding: 20px 15px;
+            /* Hide decorative elements on small screens to avoid clutter */
+            .decorative-bunny, .floating-heart, .floating-carrot, .sparkle {
+                display: none;
+            }
+            
+            .room-code-banner {
+                top: 50px;
+                left: 8px;
+            }
+            
+            .top-bar {
+                padding: 8px 10px;
+                flex-wrap: wrap;
+                gap: 10px;
+            }
+            
+            .connection-status, .family-info {
+                font-size: 0.8em;
+            }
+            
+            .day-night-indicator {
+                font-size: 1em;
+                padding: 5px 10px;
+            }
+            
+            .game-area {
+                flex-direction: column;
+            }
+            
+            .garden-panel {
+                width: 100%;
+                height: 120px;
+                flex-direction: row;
+                order: 2;
+            }
+            
+            .nest-area {
+                order: 1;
+                flex: 1;
+            }
+            
+            .status-panel {
+                margin: 5px;
+                padding: 10px;
+            }
+            
+            .action-panel {
+                padding: 10px;
+                gap: 8px;
+            }
+            
+            .action-btn {
+                padding: 10px 15px;
+                font-size: 0.9em;
+                min-width: 85px;
             }
             
             h1 {
                 font-size: 1.8em;
             }
             
-            input {
-                width: 90%;
+            .subtitle {
                 font-size: 1em;
             }
-            
-            .controls {
-                grid-template-columns: repeat(3, 1fr);
-                padding: 15px;
-                gap: 8px;
+        }
+        
+        @media (max-width: 480px) {
+            .container {
+                padding: 20px;
+                margin: 5px;
             }
             
-            .control-btn {
-                font-size: 0.9em;
-                padding: 10px 5px;
+            .room-code-banner {
+                top: 45px;
+                left: 5px;
             }
             
-            .needs-grid {
-                grid-template-columns: repeat(2, 1fr);
-                gap: 6px;
+            h1 {
+                font-size: 1.5em;
             }
             
-            .room-code {
-                font-size: 1.8em;
-                letter-spacing: 2px;
+            .action-btn {
+                padding: 8px 12px;
+                font-size: 0.8em;
+                min-width: 75px;
             }
             
-            .game-area {
-                height: 300px;
+            .status-label {
+                width: 70px;
+                font-size: 0.8em;
             }
             
-            .nest-area {
-                width: 200px;
-                height: 130px;
+            .garden-panel {
+                height: 100px;
             }
             
-            .garden-area {
-                width: 80px;
+            .garden-plot {
+                width: 60px;
                 height: 60px;
             }
         }
         
-        .baby-sprite {
-            position: absolute;
-            transition: all 0.3s ease;
-            cursor: pointer;
-            z-index: 10;
+        /* Player Setup Styles */
+        .bunny-color-option:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px var(--shadow);
         }
         
-        .crying { animation: shake 0.5s infinite; }
+        .bunny-color-option.selected {
+            border-color: var(--primary-pink) !important;
+            background: rgba(255, 182, 217, 0.3) !important;
+            box-shadow: 0 0 20px rgba(255, 105, 180, 0.4);
+        }
+        
+        /* Hidden/Utility Classes */
+        .hidden {
+            display: none !important;
+        }
+        
+        .fade-in {
+            animation: fadeIn 0.5s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+        
+        /* Error Messages */
+        .error-message {
+            background: linear-gradient(135deg, #ff6b6b, #ff5252);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 20px;
+            margin: 10px 0;
+            text-align: center;
+            font-weight: bold;
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.3);
+            animation: shake 0.5s ease-in-out;
+        }
         
         @keyframes shake {
             0%, 100% { transform: translateX(0); }
-            25% { transform: translateX(-2px); }
-            75% { transform: translateX(2px); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
         
-        .hearts {
+        /* Loading Spinner */
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 20px auto;
+            border: 4px solid var(--primary-pink);
+            border-top: 4px solid transparent;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* ===== NEW FEATURES CSS ===== */
+
+        /* Egg Notifications */
+        .egg-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 2000;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 15px 20px;
+            border: 3px solid var(--primary-pink);
+            box-shadow: 0 10px 30px rgba(255, 105, 180, 0.4);
+            transform: translateX(100%);
+            opacity: 0;
+            transition: all 0.5s ease-out;
+            backdrop-filter: blur(10px);
+            max-width: 300px;
+        }
+
+        .egg-notification.show {
+            transform: translateX(0);
+            opacity: 1;
+        }
+
+        .egg-notification.hide {
+            transform: translateX(100%);
+            opacity: 0;
+        }
+
+        .notification-content {
+            text-align: center;
+            position: relative;
+        }
+
+        .notification-content.golden_egg {
+            background: linear-gradient(135deg, #ffd700, #ffb300);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .notification-content.rainbow_egg {
+            background: linear-gradient(45deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #feca57);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .notification-text {
+            font-size: 1.1em;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .notification-sparkles::before {
+            content: '✨';
             position: absolute;
-            font-size: 0.8em;
-            color: #ff69b4;
-            animation: floatUp 2s ease-out;
+            animation: sparkle 2s ease-in-out infinite;
         }
-        
-        @keyframes floatUp {
-            0% { opacity: 1; transform: translateY(0); }
-            100% { opacity: 0; transform: translateY(-30px); }
+
+        @keyframes sparkle {
+            0%, 100% { opacity: 1; transform: rotate(0deg) scale(1); }
+            50% { opacity: 0.7; transform: rotate(180deg) scale(1.2); }
         }
-        
-        .selected-baby {
-            border: 3px solid #ff69b4 !important;
-            box-shadow: 0 0 15px rgba(255, 105, 180, 0.6);
+
+        /* Shop UI */
+        .shop-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease-out;
+        }
+
+        .shop-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .shop-overlay.hide {
+            opacity: 0;
+            visibility: hidden;
+        }
+
+        .shop-modal {
+            background: linear-gradient(135deg, var(--soft-white), var(--warm-cream));
+            border-radius: 25px;
+            padding: 20px;
+            border: 3px solid var(--primary-pink);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 90vw;
+            max-height: 80vh;
+            overflow-y: auto;
+            transform: scale(0.8);
+            transition: transform 0.3s ease-out;
+        }
+
+        .shop-overlay.show .shop-modal {
+            transform: scale(1);
+        }
+
+        .shop-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid var(--primary-pink);
+            padding-bottom: 15px;
+        }
+
+        .shop-header h2 {
+            color: var(--primary-purple);
+            margin: 0;
+            font-size: 1.5em;
+        }
+
+        .close-shop {
+            background: var(--heart-red);
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            font-size: 1.5em;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+        }
+
+        .close-shop:hover {
+            transform: scale(1.1);
+            box-shadow: 0 5px 15px rgba(255, 107, 107, 0.4);
+        }
+
+        .carrot-count-shop {
+            text-align: center;
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--carrot-orange);
+            margin-bottom: 20px;
+            padding: 10px;
+            background: rgba(255, 152, 0, 0.1);
+            border-radius: 15px;
+        }
+
+        .shop-items {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .shop-item {
+            background: rgba(255, 255, 255, 0.8);
+            border-radius: 20px;
+            padding: 15px;
+            text-align: center;
+            border: 2px solid transparent;
+            transition: all 0.3s ease;
+        }
+
+        .shop-item:hover {
+            border-color: var(--primary-pink);
+            transform: translateY(-5px);
+            box-shadow: 0 10px 20px rgba(255, 105, 180, 0.3);
+        }
+
+        .item-icon {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .item-name {
+            font-weight: bold;
+            color: var(--text-dark);
+            margin-bottom: 8px;
+        }
+
+        .item-price {
+            color: var(--carrot-orange);
+            font-weight: bold;
+            font-size: 1.1em;
+            margin-bottom: 10px;
+        }
+
+        .buy-button {
+            background: linear-gradient(135deg, var(--primary-purple), #7b1fa2);
+            color: white;
+            border: none;
+            border-radius: 15px;
+            padding: 8px 16px;
+            font-size: 1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .buy-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(147, 112, 219, 0.4);
+        }
+
+        .buy-button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Growth Celebration */
+        .growth-celebration {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            z-index: 2500;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 25px;
+            padding: 30px;
+            text-align: center;
+            border: 3px solid var(--primary-pink);
+            box-shadow: 0 20px 40px rgba(255, 105, 180, 0.4);
+            opacity: 0;
+            transition: all 0.5s ease-out;
+            backdrop-filter: blur(10px);
+        }
+
+        .growth-celebration.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .growth-celebration.hide {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+
+        .celebration-content h2 {
+            color: var(--primary-purple);
+            margin: 0 0 10px 0;
+            font-size: 1.8em;
+        }
+
+        .celebration-content p {
+            color: var(--text-dark);
+            font-size: 1.2em;
+            margin: 0;
+        }
+
+        /* Purchase Success */
+        .purchase-success {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%) scale(0.8);
+            z-index: 2500;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 20px 30px;
+            text-align: center;
+            border: 3px solid var(--gentle-green);
+            box-shadow: 0 15px 30px rgba(76, 175, 80, 0.4);
+            opacity: 0;
+            transition: all 0.5s ease-out;
+            backdrop-filter: blur(10px);
+        }
+
+        .purchase-success.show {
+            opacity: 1;
+            transform: translate(-50%, -50%) scale(1);
+        }
+
+        .purchase-success.hide {
+            opacity: 0;
+            transform: translate(-50%, -50%) scale(0.8);
+        }
+
+        .success-content {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .success-icon {
+            font-size: 2em;
+        }
+
+        .success-text {
+            font-size: 1.2em;
+            font-weight: bold;
+            color: var(--text-dark);
+        }
+
+        /* Mobile responsiveness for new features */
+        @media (max-width: 768px) {
+            .egg-notification {
+                top: 10px;
+                right: 10px;
+                left: 10px;
+                transform: translateY(-100%);
+                max-width: none;
+            }
+
+            .egg-notification.show {
+                transform: translateY(0);
+            }
+
+            .egg-notification.hide {
+                transform: translateY(-100%);
+            }
+
+            .shop-items {
+                grid-template-columns: 1fr;
+            }
+
+            .shop-modal {
+                margin: 20px;
+                max-width: calc(100vw - 40px);
+            }
+
+            .growth-celebration,
+            .purchase-success {
+                margin: 20px;
+                max-width: calc(100vw - 40px);
+            }
         }
     </style>
 </head>
 <body>
-    <!-- Main Menu -->
-    <div id="mainMenu" class="container">
-        <h1>🐰❤️ Bunny Family</h1>
-        <p class="subtitle">Raise adorable bunny babies together!</p>
+    <!-- Lobby/Menu Screen -->
+    <div id="menuScreen" class="menu-screen">
+        <!-- Floating Decorative Elements -->
+        <div class="decorative-bunny left-bunny">🐰</div>
+        <div class="decorative-bunny right-bunny">🐇</div>
+        <div class="floating-heart heart1">💕</div>
+        <div class="floating-heart heart2">💖</div>
+        <div class="floating-heart heart3">💝</div>
+        <div class="floating-carrot carrot1">🥕</div>
+        <div class="floating-carrot carrot2">🥕</div>
+        <div class="sparkle sparkle1">✨</div>
+        <div class="sparkle sparkle2">⭐</div>
+        <div class="sparkle sparkle3">💫</div>
         
-        <div>
-            <input type="text" id="playerName" placeholder="Enter your name" maxlength="20">
-        </div>
-        
-        <div>
-            <button onclick="createRoom()">💕 Create Family</button>
-        </div>
-        
-        <div>
-            <input type="text" id="roomCode" placeholder="Family Code" maxlength="6">
-            <br>
-            <button onclick="joinRoom()">🏠 Join Family</button>
-        </div>
-        
-        <div id="errorMessage" class="error" style="display: none;"></div>
-    </div>
-
-    <!-- Lobby -->
-    <div id="lobby" class="container" style="display: none;">
-        <h1>🐰❤️ Family Lobby</h1>
-        
-        <div class="room-info">
-            <p>👨‍👩‍👧‍👦 Family Code:</p>
-            <div id="roomCodeDisplay" class="room-code"></div>
-            <p class="waiting">Share this code with your partner!</p>
-        </div>
-        
-        <div id="playersStatus" class="ready-status">
-            <div class="waiting">Waiting for your partner...</div>
-        </div>
-        
-        <button id="readyButton" onclick="playerReady()" style="display: none;">✅ Ready to Start Family!</button>
-        
-        <div id="lobbyError" class="error" style="display: none;"></div>
-    </div>
-
-    <!-- Game -->
-    <div id="gameContainer" class="game-container">
-        <!-- Connection Bar -->
-        <div class="connection-bar">
-            <div class="player-connection">
-                <div id="player1Status" class="status-indicator"></div>
-                <span id="player1Name">Player 1</span>
-                <span>🐰⬛</span>
-            </div>
+        <div class="container">
+            <h1>
+                <span class="bunny-icon">🐰</span>
+                Bunny Family
+                <span class="bunny-icon">❤️</span>
+            </h1>
+            <p class="subtitle">Cooperative 2D Tamagotchi for Couples</p>
+            <p class="description">🌸 Raise adorable bunny babies together! 🌸</p>
             
-            <div class="day-night">
-                <span id="dayNightIcon">☀️</span>
-                <span id="timeDisplay">Day</span>
-            </div>
-            
-            <div class="player-connection">
-                <span>🐰⬜</span>
-                <span id="player2Name">Player 2</span>
-                <div id="player2Status" class="status-indicator"></div>
-            </div>
-        </div>
-
-        <!-- Baby Status Panel -->
-        <div class="baby-status">
-            <div id="babiesStatus">
-                <!-- Baby status cards will be populated here -->
-            </div>
-        </div>
-
-        <!-- Game Area -->
-        <div class="game-area" id="gameArea">
-            <!-- Family Stats -->
-            <div class="family-stats">
-                <div><strong>🥕 Carrots:</strong> <span id="carrotCount">0</span></div>
-                <div><strong>❤️ Family Love:</strong> <span id="familyLove">50</span></div>
-                <div><strong>👶 Generation:</strong> <span id="generation">1</span></div>
-            </div>
-
-            <!-- Garden -->
-            <div class="garden-area" onclick="harvestCarrot()">
-                <div id="gardenCarrots">
-                    <!-- Garden carrots will be populated here -->
+            <!-- NEW: Player Setup Section -->
+            <div id="playerSetup" style="margin-bottom: 20px;">
+                <input type="text" id="playerNameInput" placeholder="Enter Your Name" maxlength="20" style="margin-bottom: 15px;">
+                
+                <div style="margin-bottom: 15px;">
+                    <div style="font-weight: bold; color: var(--primary-purple); margin-bottom: 10px;">Choose Your Bunny Color:</div>
+                    <div style="display: flex; justify-content: center; gap: 20px;">
+                        <div class="bunny-color-option" data-color="black" style="cursor: pointer; padding: 15px; border-radius: 15px; border: 3px solid transparent; transition: all 0.3s ease; background: rgba(255, 255, 255, 0.8);">
+                            <div style="font-size: 3em;">🐰⚫</div>
+                            <div style="font-size: 0.9em; font-weight: bold; margin-top: 5px;">Black Bunny</div>
+                        </div>
+                        <div class="bunny-color-option selected" data-color="white" style="cursor: pointer; padding: 15px; border-radius: 15px; border: 3px solid var(--primary-pink); transition: all 0.3s ease; background: rgba(255, 255, 255, 0.8);">
+                            <div style="font-size: 3em;">🐇⚪</div>
+                            <div style="font-size: 0.9em; font-weight: bold; margin-top: 5px;">White Bunny</div>
+                        </div>
+                    </div>
                 </div>
-                <div class="carrot-count">🥕 <span id="gardenCount">3</span></div>
             </div>
-
-            <!-- Nest -->
-            <div class="nest-area">
-                <!-- Babies will be positioned here -->
+            
+            <div id="menuButtons">
+                <button id="createRoomBtn">🏠 Create New Family</button>
+                <input type="text" id="roomCodeInput" placeholder="Enter Room Code" maxlength="6">
+                <button id="joinRoomBtn">🚪 Join Family</button>
+                <button id="resumeGameBtn" style="display: none;">🔄 Resume Game</button>
             </div>
-
-            <!-- Canvas for Phaser game -->
-            <div id="phaserCanvas"></div>
-        </div>
-
-        <!-- Controls -->
-        <div class="controls">
-            <button class="control-btn feed-btn" onclick="performAction('feed')">
-                <span>🥕</span>
-                <span>Feed</span>
-            </button>
-            <button class="control-btn play-btn" onclick="performAction('play')">
-                <span>🎾</span>
-                <span>Play</span>
-            </button>
-            <button class="control-btn sleep-btn" onclick="performAction('sleep')">
-                <span>💤</span>
-                <span>Sleep</span>
-            </button>
-            <button class="control-btn clean-btn" onclick="performAction('clean')">
-                <span>🧹</span>
-                <span>Clean</span>
-            </button>
-            <button class="control-btn pet-btn" onclick="performAction('pet')">
-                <span>❤️</span>
-                <span>Pet</span>
-            </button>
+            
+            <div id="menuMessage"></div>
         </div>
     </div>
 
-    <!-- Notification System -->
-    <div id="notifications"></div>
+    <!-- Main Game Interface -->
+    <div id="gameContainer" class="game-container">
+        <!-- Room Code Banner (shown when room is created) -->
+        <div id="roomCodeBanner" class="room-code-banner hidden">
+            <div class="room-code-content">
+                <span class="room-code-icon">🏠</span>
+                <div class="room-code-text">
+                    <div class="room-code-label">Your Family Code:</div>
+                    <div class="room-code-value" id="roomCodeDisplay">------</div>
+                    <div class="room-code-share">Share with your partner!</div>
+                </div>
+                <button class="room-code-copy" id="roomCodeCopy" title="Copy Code">📋</button>
+            </div>
+        </div>
 
-    <!-- Socket.io -->
+        <!-- Top Status Bar -->
+        <div class="top-bar">
+            <div class="connection-status">
+                <div class="status-dot disconnected" id="connectionStatus"></div>
+                <span id="connectionText">Connecting...</span>
+            </div>
+            
+            <div class="day-night-indicator" id="dayNightIndicator">
+                <span id="dayNightIcon">☀️</span>
+                <span id="dayNightText">Day</span>
+            </div>
+            
+            <div class="family-info">
+                <div class="carrot-count">
+                    🥕 <span id="carrotCount">8</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Game Area -->
+        <div class="game-area">
+            <!-- Central Nest Area -->
+            <div class="nest-area">
+                <!-- 2D Canvas for Bunny Graphics -->
+                <canvas id="gameCanvas" width="800" height="600"></canvas>
+                
+                <!-- Status Panel for Selected Baby -->
+                <div class="status-panel">
+                    <div class="baby-status">
+                        <div class="baby-name" id="babyName">Baby Bunny</div>
+                        
+                        <div class="status-bar status-hunger">
+                            <div class="status-label">🍎 Hunger</div>
+                            <div class="status-fill">
+                                <div class="status-progress" id="hungerBar"></div>
+                            </div>
+                            <div class="status-value" id="hungerValue">85</div>
+                        </div>
+                        
+                        <div class="status-bar status-happiness">
+                            <div class="status-label">😊 Happy</div>
+                            <div class="status-fill">
+                                <div class="status-progress" id="happinessBar"></div>
+                            </div>
+                            <div class="status-value" id="happinessValue">85</div>
+                        </div>
+                        
+                        <div class="status-bar status-energy">
+                            <div class="status-label">⚡ Energy</div>
+                            <div class="status-fill">
+                                <div class="status-progress" id="energyBar"></div>
+                            </div>
+                            <div class="status-value" id="energyValue">85</div>
+                        </div>
+                        
+                        <div class="status-bar status-cleanliness">
+                            <div class="status-label">🧼 Clean</div>
+                            <div class="status-fill">
+                                <div class="status-progress" id="cleanlinessBar"></div>
+                            </div>
+                            <div class="status-value" id="cleanlinessValue">85</div>
+                        </div>
+                        
+                        <div class="status-bar status-love">
+                            <div class="status-label">💖 Love</div>
+                            <div class="status-fill">
+                                <div class="status-progress" id="loveBar"></div>
+                            </div>
+                            <div class="status-value" id="loveValue">5</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Garden Sidebar -->
+            <div class="garden-panel">
+                <div class="garden-title">🌱 Garden</div>
+                <div class="garden-plot" id="gardenPlot">
+                    <div class="carrot-sprite">🥕</div>
+                </div>
+                <div class="garden-info">
+                    <div>Quality: <span id="gardenQuality">50</span>%</div>
+                    <div class="harvest-timer" id="harvestTimer">Ready!</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="action-panel">
+            <button class="action-btn feed" id="feedBtn">🥕 Feed</button>
+            <button class="action-btn play" id="playBtn">🎮 Play</button>
+            <button class="action-btn sleep" id="sleepBtn">💤 Sleep</button>
+            <button class="action-btn clean" id="cleanBtn">🧹 Clean</button>
+            <button class="action-btn pet" id="petBtn">❤️ Pet</button>
+            <button class="action-btn cave" id="caveBtn">🏔️ Cave</button>
+            <button class="action-btn shop" id="shopBtn">🛒 Shop</button>
+            <button class="action-btn" id="basketBtn" style="background:linear-gradient(135deg, #8d6e63, #6d4c41);">🧺 Basket</button>
+        </div>
+    </div>
+
+    <!-- Socket.io from server -->
     <script src="/socket.io/socket.io.js"></script>
     
-    <!-- Phaser 3 -->
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.70.0/dist/phaser.min.js"></script>
-    
-    <!-- Game Logic -->
+    <!-- Main Game Script -->
     <script src="game.js"></script>
 </body>
 </html>

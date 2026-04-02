@@ -1,0 +1,24 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: bunny-frontend
+  namespace: bunny-game
+  labels:
+    app: bunny-frontend
+    component: frontend
+  annotations:
+    metallb.io/ip-allocated-from-pool: first-pool
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 172.20.10.114
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 10800  # 3 hours - critical for Socket.IO WebSocket connections
+  ports:
+  - port: 80
+    targetPort: 3000
+    protocol: TCP
+    name: http
+  selector:
+    app: bunny-frontend
