@@ -1,0 +1,19 @@
+node_modules/
+npm-debug.log*
+.DS_Store
+.env
+.env.local
+.env.*.local
+coverage/
+.nyc_output/
+dist/
+build/
+*.log
+.vscode/
+.idea/
+ssl/
+
+# Runtime game data
+backend/backups/
+backend/saves/
+
