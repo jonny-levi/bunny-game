@@ -275,6 +275,79 @@ const GAME_CONFIG = {
                 slot: 'eyes',
                 color: '#333',
                 description: 'Stylish sunglasses for a cool bunny!'
+            },
+            // === DESIGNER / SPORTSWEAR COLLECTION ===
+            hopmes_scarf: {
+                name: 'Hopmès Silk Carré',
+                cost: 25,
+                effect: { happiness: 8 },
+                type: 'wearable',
+                slot: 'neck',
+                color: '#ff7518',
+                description: 'Maison Hopmès — equestrian silk scarf, orange signature.'
+            },
+            louis_bunitton: {
+                name: 'Louis Bunitton Monogram',
+                cost: 30,
+                effect: { happiness: 10 },
+                type: 'wearable',
+                slot: 'back',
+                color: '#5a3a20',
+                description: 'Louis Bunitton — iconic LB monogram leather.'
+            },
+            dior_shades: {
+                name: 'Dior-able Gold Shades',
+                cost: 22,
+                effect: {},
+                type: 'wearable',
+                slot: 'eyes',
+                color: '#d4af37',
+                description: 'Dior-able — gold frame aviators, instant chic.'
+            },
+            hike_cap: {
+                name: 'Hike Signature Cap',
+                cost: 18,
+                effect: { energy: 5 },
+                type: 'wearable',
+                slot: 'head',
+                color: '#ffffff',
+                description: 'Hike — Just Hop It. Limited drop.'
+            },
+            hoppidas_jacket: {
+                name: 'Hoppidas Trefoil Jacket',
+                cost: 20,
+                effect: { energy: 8 },
+                type: 'wearable',
+                slot: 'back',
+                color: '#1a1a1a',
+                description: 'Hoppidas — three-stripe classic, black & white.'
+            },
+            cloud_kicks: {
+                name: 'On Cloud-Hop Runners',
+                cost: 22,
+                effect: { energy: 10 },
+                type: 'wearable',
+                slot: 'held',
+                color: '#f0f0f0',
+                description: 'On Cloud-Hop — Swiss engineered cushion pods.'
+            },
+            bunnci_beanie: {
+                name: 'Bunnci Stripe Beanie',
+                cost: 19,
+                effect: { energy: 5 },
+                type: 'wearable',
+                slot: 'head',
+                color: '#006633',
+                description: 'Bunnci — iconic green-red-green stripes.'
+            },
+            chanel_pearls: {
+                name: 'Chabun N°5 Pearls',
+                cost: 28,
+                effect: { happiness: 12 },
+                type: 'wearable',
+                slot: 'neck',
+                color: '#f8f4e8',
+                description: 'Chabun — multi-strand baroque pearls.'
             }
         }
     }
