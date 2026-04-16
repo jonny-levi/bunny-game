@@ -4268,7 +4268,14 @@ function drawPlaygroundBackground(width, height) {
     });
 
     // === SLIDE (playground equipment) ===
+    // Equipment scale — bump everything up so the set is sized to a parent
+    // bunny (~60px radius) instead of the previous toy-town look.
+    const PLAY_EQUIP_SCALE = 1.8;
     const slideX = width * 0.18, slideBaseY = height * 0.88;
+    ctx.save();
+    ctx.translate(slideX, slideBaseY);
+    ctx.scale(PLAY_EQUIP_SCALE, PLAY_EQUIP_SCALE);
+    ctx.translate(-slideX, -slideBaseY);
     // Ladder posts
     ctx.fillStyle = '#c04020';
     ctx.fillRect(slideX - 2, slideBaseY - 45, 3, 45);
@@ -4308,8 +4315,14 @@ function drawPlaygroundBackground(width, height) {
     ctx.quadraticCurveTo(slideX + 41, slideBaseY - 38, slideX + 56, slideBaseY - 5);
     ctx.stroke();
 
+    ctx.restore();
+
     // === SWING SET ===
     const swX = width * 0.75, swY = height * 0.68;
+    ctx.save();
+    ctx.translate(swX, swY);
+    ctx.scale(PLAY_EQUIP_SCALE, PLAY_EQUIP_SCALE);
+    ctx.translate(-swX, -swY);
     // A-frame posts
     ctx.strokeStyle = '#5a3820';
     ctx.lineWidth = 3;
@@ -4341,8 +4354,14 @@ function drawPlaygroundBackground(width, height) {
     ctx.fillStyle = '#ff8060';
     ctx.fillRect(seatX - 10, seatY, 20, 1);
 
+    ctx.restore();
+
     // === SEESAW ===
     const ssX = width * 0.48, ssY = height * 0.78;
+    ctx.save();
+    ctx.translate(ssX, ssY);
+    ctx.scale(PLAY_EQUIP_SCALE, PLAY_EQUIP_SCALE);
+    ctx.translate(-ssX, -ssY);
     const ssPivot = Math.sin(time * 1.4) * 0.25;
     // Pivot fulcrum
     ctx.fillStyle = '#555';
@@ -4378,8 +4397,14 @@ function drawPlaygroundBackground(width, height) {
     ctx.stroke();
     ctx.restore();
 
+    ctx.restore();
+
     // === SANDBOX with toys ===
     const sbX = width * 0.35, sbY = height * 0.88;
+    ctx.save();
+    ctx.translate(sbX, sbY);
+    ctx.scale(PLAY_EQUIP_SCALE, PLAY_EQUIP_SCALE);
+    ctx.translate(-sbX, -sbY);
     const sbW = 60, sbH = 18;
     // Wood frame
     ctx.fillStyle = '#7a5230';
@@ -4432,8 +4457,14 @@ function drawPlaygroundBackground(width, height) {
     ctx.closePath();
     ctx.fill();
 
+    ctx.restore();
+
     // === PICNIC TABLE (distant, behind field) ===
     const ptX = width * 0.6, ptY = height * 0.60;
+    ctx.save();
+    ctx.translate(ptX, ptY);
+    ctx.scale(PLAY_EQUIP_SCALE, PLAY_EQUIP_SCALE);
+    ctx.translate(-ptX, -ptY);
     // Umbrella pole + fabric
     ctx.strokeStyle = '#5a3820';
     ctx.lineWidth = 2;
@@ -4470,6 +4501,7 @@ function drawPlaygroundBackground(width, height) {
     // Bench
     ctx.fillStyle = '#a07040';
     ctx.fillRect(ptX - 16, ptY + 6, 32, 2);
+    ctx.restore();
 }
 
 
@@ -6926,7 +6958,10 @@ function drawBunnyBaby(x, y, baby) {
 
 function drawBunnyWearables(x, y, size, wearables) {
     if (!wearables || typeof wearables !== 'object') return;
-    size = size * 1.6;
+    // Wearables are drawn relative to the bunny's own size. Scale down from
+    // 1.6× → 1.1× so hats, scarves and bags actually hug the silhouette
+    // instead of floating above/around it.
+    size = size * 1.1;
     const time = Date.now() * 0.003;
 
     // === BACK SLOT — cape/blanket/bag/jacket ===
