@@ -2693,18 +2693,46 @@ function drawDayBackgroundToContext(context, width, height) {
     context.strokeStyle = '#4a3a20';
     context.lineWidth = 1.5;
     context.stroke();
-    // Ripples
-    context.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    // Ripples — 4 expanding rings with staggered phases so the pond always
+    // has a concentric wave mid-flight. Each ring grows and fades over ~3s.
+    context.strokeStyle = 'rgba(255, 255, 255, 0.6)';
     context.lineWidth = 1;
-    for (let r = 0; r < 3; r++) {
-        const rRadius = (pondW * 0.35) * (1 - r * 0.25);
-        const rAlpha = 0.5 - r * 0.15 + Math.sin(time * 1.5 + r) * 0.1;
-        context.globalAlpha = Math.max(0, rAlpha);
+    for (let r = 0; r < 4; r++) {
+        const period = 3.2;
+        const phase = ((time + r * period / 4) % period) / period;    // 0..1
+        const grow = phase;                                            // 0..1
+        const rRadius = pondW * 0.12 + grow * pondW * 0.4;
+        const rAlpha = Math.max(0, 0.55 * (1 - grow));
+        context.globalAlpha = rAlpha;
         context.beginPath();
         context.ellipse(pondX, pondY, rRadius, rRadius * (pondH / pondW), 0, 0, Math.PI * 2);
         context.stroke();
     }
     context.globalAlpha = 1;
+
+    // Fish flash — a silver glint crosses the pond every few seconds.
+    const fishPeriod = 7;
+    const fishPhase = (time % fishPeriod) / fishPeriod;
+    if (fishPhase < 0.35) {
+        const ft = fishPhase / 0.35;
+        const fishX = pondX - pondW * 0.35 + ft * pondW * 0.7;
+        const fishY = pondY + Math.sin(ft * Math.PI * 3) * 3;
+        const alpha = Math.sin(ft * Math.PI) * 0.8;
+        context.save();
+        context.globalAlpha = alpha;
+        context.fillStyle = '#e8f0ff';
+        context.beginPath();
+        context.ellipse(fishX, fishY, 6, 2.2, Math.sin(ft * 4) * 0.2, 0, Math.PI * 2);
+        context.fill();
+        // Tail flick
+        context.beginPath();
+        context.moveTo(fishX - 6, fishY);
+        context.lineTo(fishX - 10, fishY - 2);
+        context.lineTo(fishX - 10, fishY + 2);
+        context.closePath();
+        context.fill();
+        context.restore();
+    }
     // Lily pads
     for (let lp = 0; lp < 2; lp++) {
         const lpx = pondX + (lp ? pondW * 0.4 : -pondW * 0.3);
@@ -2781,6 +2809,43 @@ function drawDayBackgroundToContext(context, width, height) {
     context.ellipse(logX + logW * 0.7, logY, 6, 2.5, 0, Math.PI, Math.PI * 2);
     context.fill();
 
+    // === BIRD FLOCK — V-formation drifting across the sky ===
+    // Two flocks moving at different speeds/heights for depth.
+    [
+        { baseY: height * 0.12, speed: 18, size: 1.0, offset: 0,   tint: 'rgba(30, 35, 50, 0.78)' },
+        { baseY: height * 0.22, speed: 11, size: 0.7, offset: 260, tint: 'rgba(40, 45, 60, 0.55)' },
+    ].forEach(flock => {
+        // Each flock of 5 birds in a V shape, leader at front.
+        const leadX = ((time * flock.speed + flock.offset) % (width + 220)) - 110;
+        const wingFlap = Math.sin(time * 9 + flock.offset * 0.01);
+        for (let i = 0; i < 5; i++) {
+            const row = Math.abs(i - 2);                // 0 (center) .. 2 (wingtip)
+            const lr  = i - 2;                          // -2 .. 2
+            const bx  = leadX - row * 14 * flock.size;
+            const by  = flock.baseY + row * 5 * flock.size + Math.sin(time * 1.6 + i * 0.4) * 2;
+            const w   = 8 * flock.size;
+            // Per-bird flap phase — staggered so flock isn't lockstep.
+            const phase = wingFlap * (1 - 0.12 * i);
+            const lift  = 1 + phase * 0.25;
+            context.strokeStyle = flock.tint;
+            context.lineCap = 'round';
+            context.lineWidth = 1.4 * flock.size;
+            context.beginPath();
+            context.moveTo(bx - w, by + (1 - lift) * 2);
+            context.quadraticCurveTo(bx - w * 0.4, by - w * 0.55 * lift, bx, by);
+            context.quadraticCurveTo(bx + w * 0.4, by - w * 0.55 * lift, bx + w, by + (1 - lift) * 2);
+            context.stroke();
+            // Tiny body dot so they read as birds, not just chevrons.
+            context.fillStyle = flock.tint;
+            context.beginPath();
+            context.arc(bx, by, 0.9 * flock.size, 0, Math.PI * 2);
+            context.fill();
+            // Mirror lr unused variable so lint is happy
+            if (lr === 999) break;
+        }
+        context.lineCap = 'butt';
+    });
+
     // === BUTTERFLIES (drawn, not emoji) ===
     [
         { x: width * 0.3 + Math.sin(time * 1.2) * 25, y: height * 0.45 + Math.cos(time * 1.8) * 12, c1: '#ff69b4', c2: '#ffd23a' },
@@ -2814,6 +2879,37 @@ function drawDayBackgroundToContext(context, width, height) {
         context.stroke();
         context.restore();
     });
+
+    // === DRIFTING LEAVES — autumnal colors swirl down from the canopy ===
+    const leafColors = ['#d86020', '#e89820', '#c4502a', '#ffa030', '#a86020'];
+    for (let l = 0; l < 10; l++) {
+        // Each leaf has its own descending loop. Period ~12s so they drift lazily.
+        const period = 12 + (l % 5) * 1.7;
+        const phase = ((time + l * 1.3) % period) / period;       // 0..1
+        const startX = (l * 83) % width;
+        const swirl = Math.sin(time * 0.8 + l * 0.7) * 40;
+        const lx = startX + swirl + phase * 10;
+        const ly = -10 + phase * (height * 0.8);
+        // Rotate each leaf — gentle tumble
+        const rot = time * (0.6 + (l % 3) * 0.2) + l;
+        context.save();
+        context.translate(lx, ly);
+        context.rotate(rot);
+        context.fillStyle = leafColors[l % leafColors.length];
+        context.globalAlpha = 0.85;
+        context.beginPath();
+        context.ellipse(0, 0, 5, 2.5, 0, 0, Math.PI * 2);
+        context.fill();
+        // Leaf vein
+        context.strokeStyle = 'rgba(40, 25, 10, 0.4)';
+        context.lineWidth = 0.5;
+        context.beginPath();
+        context.moveTo(-5, 0);
+        context.lineTo(5, 0);
+        context.stroke();
+        context.globalAlpha = 1;
+        context.restore();
+    }
 
     // === DAPPLED SUNLIGHT SPOTS on ground ===
     context.fillStyle = 'rgba(255, 240, 180, 0.2)';
@@ -3035,6 +3131,42 @@ function drawNightBackgroundToContext(context, width, height) {
         context.arc(sx, sy, sz, 0, Math.PI * 2);
         context.fill();
     });
+
+    // === SHOOTING STARS — periodic diagonal streaks across the sky ===
+    // Three offset "lanes" so you often catch at least one mid-flight.
+    for (let lane = 0; lane < 3; lane++) {
+        const period = 11 + lane * 2.7;           // seconds between shots in this lane
+        const phase = (time + lane * 3.4) % period;
+        const flightDur = 1.4;                    // how long each streak stays visible
+        if (phase > flightDur) continue;
+        const t = phase / flightDur;              // 0..1 across the flight
+        // Lane-seeded starting spot + diagonal trajectory.
+        const startX = width * (0.1 + lane * 0.32);
+        const startY = height * 0.04;
+        const endX = startX + width * 0.35;
+        const endY = startY + height * 0.22;
+        const sx = startX + (endX - startX) * t;
+        const sy = startY + (endY - startY) * t;
+        const trailLen = 48;
+        // Fading trail
+        const trailG = context.createLinearGradient(sx, sy, sx - trailLen, sy - trailLen * 0.55);
+        trailG.addColorStop(0, `rgba(255, 250, 220, ${0.95 * (1 - t)})`);
+        trailG.addColorStop(1, 'rgba(255, 250, 220, 0)');
+        context.strokeStyle = trailG;
+        context.lineWidth = 2;
+        context.lineCap = 'round';
+        context.beginPath();
+        context.moveTo(sx, sy);
+        context.lineTo(sx - trailLen, sy - trailLen * 0.55);
+        context.stroke();
+        // Bright head
+        const headG = context.createRadialGradient(sx, sy, 0, sx, sy, 6);
+        headG.addColorStop(0, `rgba(255, 255, 240, ${0.9 * (1 - t * 0.4)})`);
+        headG.addColorStop(1, 'rgba(255, 250, 220, 0)');
+        context.fillStyle = headG;
+        context.fillRect(sx - 6, sy - 6, 12, 12);
+        context.lineCap = 'butt';
+    }
 
     // === MOON with realistic glow + craters ===
     const moonX = width * 0.82;
@@ -4249,6 +4381,55 @@ function drawPlaygroundBackground(width, height) {
         ctx.fillText('⚽ PLAY TIME! ⚽', width / 2, 25);
         ctx.textAlign = 'left';
     }
+
+    // === GROUND SPARROWS — small birds pecking in the grass ===
+    [
+        { baseX: width * 0.25, baseY: height * 0.93, period: 2.7, seed: 0 },
+        { baseX: width * 0.60, baseY: height * 0.95, period: 3.1, seed: 1.6 },
+        { baseX: width * 0.85, baseY: height * 0.92, period: 2.5, seed: 3.1 },
+    ].forEach(s => {
+        const p = ((time + s.seed) % s.period) / s.period;           // 0..1
+        // Little hop every cycle, peck at bottom.
+        const hop = p < 0.4 ? Math.sin(p / 0.4 * Math.PI) * 6 : 0;
+        const bob = p >= 0.4 && p < 0.7 ? Math.sin((p - 0.4) / 0.3 * Math.PI * 3) * 3 : 0;
+        const bx = s.baseX + p * 18 - 9;
+        const by = s.baseY - hop + bob;
+        // Body
+        ctx.fillStyle = '#6a4a30';
+        ctx.beginPath();
+        ctx.ellipse(bx, by, 5, 3.5, 0.15, 0, Math.PI * 2);
+        ctx.fill();
+        // Head (tilts during peck)
+        ctx.fillStyle = '#3a2a18';
+        const headTilt = bob > 0 ? 0.6 : 0;
+        ctx.beginPath();
+        ctx.arc(bx + 4, by - 1 + headTilt * 2, 2.2, 0, Math.PI * 2);
+        ctx.fill();
+        // Beak
+        ctx.fillStyle = '#f0b040';
+        ctx.beginPath();
+        ctx.moveTo(bx + 6, by - 1 + headTilt * 2);
+        ctx.lineTo(bx + 8, by + headTilt * 2);
+        ctx.lineTo(bx + 6, by + 0.5 + headTilt * 2);
+        ctx.closePath();
+        ctx.fill();
+        // Eye dot
+        ctx.fillStyle = '#fff';
+        ctx.beginPath();
+        ctx.arc(bx + 4.2, by - 1.5 + headTilt * 2, 0.5, 0, Math.PI * 2);
+        ctx.fill();
+        // Legs when not hopping
+        if (hop === 0) {
+            ctx.strokeStyle = '#5a3a20';
+            ctx.lineWidth = 0.8;
+            ctx.beginPath();
+            ctx.moveTo(bx - 1, by + 3);
+            ctx.lineTo(bx - 1, by + 5);
+            ctx.moveTo(bx + 2, by + 3);
+            ctx.lineTo(bx + 2, by + 5);
+            ctx.stroke();
+        }
+    });
 
     // Corner flags
     const flagWave = Math.sin(time * 4) * 5;
@@ -5953,19 +6134,51 @@ function drawCaveSleepingScene(width, height) {
         ctx.fill();
     }
 
-    // === Z's floating up from sleeping bunnies (text) ===
-    ctx.font = 'italic 18px Arial';
-    ctx.fillStyle = 'rgba(180, 200, 240, 0.7)';
+    // === Z's floating up from every sleeping bunny ===
+    // Three z's per sleeper, staggered: small → medium → big as they rise.
     sleepers.forEach((s, i) => {
-        if (i % 2 === 0) {
-            const zPhase = (time * 0.4 + i * 0.5) % 3;
-            const zX = s.x + 15 + Math.sin(zPhase * 3) * 5;
-            const zY = s.y - 15 - zPhase * 25;
-            const zA = (1 - zPhase / 3) * 0.6;
-            ctx.fillStyle = `rgba(180, 200, 240, ${zA})`;
-            ctx.fillText('z', zX, zY);
+        for (let n = 0; n < 3; n++) {
+            const period = 3.0;
+            const phase = ((time * 0.6 + i * 0.5 + n * (period / 3)) % period) / period;
+            const zSize = 10 + phase * 14;
+            const zX = s.x + 12 + Math.sin(phase * 4 + i) * 6;
+            const zY = s.y - 8 - phase * 34;
+            const zA = Math.max(0, 0.75 * (1 - phase));
+            ctx.font = `italic bold ${zSize}px Arial`;
+            ctx.fillStyle = `rgba(200, 220, 255, ${zA})`;
+            ctx.strokeStyle = `rgba(60, 90, 140, ${zA * 0.6})`;
+            ctx.lineWidth = 0.8;
+            ctx.fillText('Z', zX, zY);
+            ctx.strokeText('Z', zX, zY);
         }
     });
+
+    // === FIREFLIES — floating glowing sprites that drift in slow loops ===
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let f = 0; f < 14; f++) {
+        // Each firefly has its own base point and two phase drifts for a
+        // wandering, non-periodic-feeling path.
+        const baseX = width * (0.1 + (f * 0.061 + 0.05) % 0.85);
+        const baseY = height * (0.35 + (f * 0.091) % 0.45);
+        const fx = baseX + Math.sin(time * (0.7 + (f % 4) * 0.18) + f * 1.3) * 28;
+        const fy = baseY + Math.cos(time * (0.9 + (f % 3) * 0.22) + f * 2.1) * 22;
+        // Pulse: each firefly blinks on its own clock.
+        const pulse = 0.3 + 0.7 * Math.max(0, Math.sin(time * (1.4 + (f % 5) * 0.4) + f));
+        const r = 6 + pulse * 2;
+        const glow = ctx.createRadialGradient(fx, fy, 0, fx, fy, r);
+        glow.addColorStop(0, `rgba(255, 240, 150, ${0.55 * pulse})`);
+        glow.addColorStop(0.5, `rgba(255, 220, 110, ${0.25 * pulse})`);
+        glow.addColorStop(1, 'rgba(255, 220, 110, 0)');
+        ctx.fillStyle = glow;
+        ctx.fillRect(fx - r, fy - r, r * 2, r * 2);
+        // Bright core
+        ctx.fillStyle = `rgba(255, 250, 200, ${pulse})`;
+        ctx.beginPath();
+        ctx.arc(fx, fy, 0.9 + pulse * 0.4, 0, Math.PI * 2);
+        ctx.fill();
+    }
+    ctx.restore();
 
     // Vignette to enhance cozy darkness
     const vign = ctx.createRadialGradient(width / 2, height / 2, height * 0.3, width / 2, height / 2, height * 0.85);
@@ -7054,6 +7267,10 @@ function drawBunnyWearables(x, y, size, wearables) {
         } else {
             // Default cape/blanket with velvet gradient + gold trim
         const color = backItem.color || '#7e57c2';
+        // Breeze sway — the cape's bottom edge drifts a few pixels left/right
+        // so the fabric feels alive instead of painted-on.
+        const sway = Math.sin(time * 1.2) * size * 0.09;
+        const sway2 = Math.sin(time * 1.2 + 0.8) * size * 0.05;
         const capeG = ctx.createLinearGradient(x - size * 0.6, 0, x + size * 0.6, 0);
         capeG.addColorStop(0, shiftColor(color, -40));
         capeG.addColorStop(0.3, color);
@@ -7062,24 +7279,25 @@ function drawBunnyWearables(x, y, size, wearables) {
         ctx.fillStyle = capeG;
         ctx.beginPath();
         ctx.moveTo(x - size * 0.6, y - size * 0.3);
-        ctx.quadraticCurveTo(x, y + size * 1.1, x + size * 0.6, y - size * 0.3);
+        ctx.quadraticCurveTo(x + sway, y + size * 1.1, x + size * 0.6, y - size * 0.3);
         ctx.lineTo(x + size * 0.5, y - size * 0.5);
-        ctx.quadraticCurveTo(x, y + size * 0.8, x - size * 0.5, y - size * 0.5);
+        ctx.quadraticCurveTo(x + sway2, y + size * 0.8, x - size * 0.5, y - size * 0.5);
         ctx.fill();
         // Gold trim
         ctx.strokeStyle = '#f0c84a';
         ctx.lineWidth = 2;
         ctx.beginPath();
         ctx.moveTo(x - size * 0.6, y - size * 0.3);
-        ctx.quadraticCurveTo(x, y + size * 1.1, x + size * 0.6, y - size * 0.3);
+        ctx.quadraticCurveTo(x + sway, y + size * 1.1, x + size * 0.6, y - size * 0.3);
         ctx.stroke();
-        // Fold-line shadows (gives fabric drape)
+        // Fold-line shadows (gives fabric drape — shifts with the sway)
         ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
         ctx.lineWidth = 1.2;
         for (let f = -2; f <= 2; f++) {
+            const foldShift = sway * (1 - Math.abs(f) / 3);
             ctx.beginPath();
             ctx.moveTo(x + f * size * 0.15, y - size * 0.35);
-            ctx.quadraticCurveTo(x + f * size * 0.12, y + size * 0.4, x + f * size * 0.08, y + size * 0.85);
+            ctx.quadraticCurveTo(x + f * size * 0.12 + foldShift, y + size * 0.4, x + f * size * 0.08 + foldShift, y + size * 0.85);
             ctx.stroke();
         }
         } // close default else block
