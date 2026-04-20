@@ -168,12 +168,105 @@ class GameValidator {
         if (!message || typeof message !== 'string') {
             return '';
         }
-        
+
         // Remove HTML tags and limit length
         return message
             .replace(/<[^>]*>/g, '')
             .substring(0, 500)
             .trim();
+    }
+
+    // --- Wish System (Whispered Wishes) -----------------------------------
+    // Hardcoded whitelist of hiding-spot identifiers. Anything else is
+    // rejected before reaching the wish system to prevent arbitrary keys
+    // being written into gameState.wishSystem.activeWishes.
+    static validateWishSpotId(spotId) {
+        const validSpots = ['bowl', 'garden', 'pad', 'pile', 'shelf', 'shadow', 'cave'];
+        if (typeof spotId !== 'string') {
+            throw new ValidationError('Spot id must be a string', 'spotId');
+        }
+        if (!validSpots.includes(spotId)) {
+            throw new ValidationError('Invalid hiding spot', 'spotId');
+        }
+        return spotId;
+    }
+
+    // Whitelist of gameplay actions that can reveal a wish. Matches the
+    // triggers in wishSystem.js SPOT_TRIGGER_ACTIONS — keep in sync.
+    static validateWishTriggerAction(action) {
+        const validTriggers = ['feed', 'play', 'pet', 'clean', 'harvest', 'water', 'sleep', 'cave_enter', 'cave_exit'];
+        if (typeof action !== 'string') {
+            throw new ValidationError('Trigger action must be a string', 'triggerAction');
+        }
+        if (!validTriggers.includes(action)) {
+            throw new ValidationError('Invalid trigger action', 'triggerAction');
+        }
+        return action;
+    }
+
+    // Wish text: <=140 chars, strip control chars + HTML tags, reject empty.
+    // Called server-side BEFORE storage; returns the cleaned string.
+    static validateWishMessage(message) {
+        if (typeof message !== 'string') {
+            throw new ValidationError('Wish message must be a string', 'message');
+        }
+        // P2-4: reject oversize payloads BEFORE running the regex so a 1MB
+        // submission full of `<x>` tokens can't burn CPU in the stripper.
+        if (message.length > 1000) {
+            throw new ValidationError('Wish message too long', 'message');
+        }
+        // Strip HTML tags first
+        let cleaned = message.replace(/<[^>]*>/g, '');
+        // Strip ASCII control chars (0x00-0x1F, 0x7F) except nothing — no
+        // whitespace like tab/newline is allowed inside a wish, matches the
+        // send_love_note style of keeping the text single-line.
+        cleaned = cleaned.replace(/[\x00-\x1F\x7F]/g, '');
+        // P2-2: strip zero-width + bidi override + format chars so an attacker
+        // can't render a wish that looks empty or says the opposite of what
+        // was sent.
+        cleaned = cleaned.replace(/[\u200B-\u200F\u202A-\u202E\u2060-\u206F\uFEFF]/g, '');
+        // Normalize so combining-accent + base-char count the same towards
+        // the 140-char cap as a pre-composed glyph.
+        try { cleaned = cleaned.normalize('NFC'); } catch (_e) { /* ignore */ }
+        // Trim surrounding whitespace
+        cleaned = cleaned.trim();
+        if (cleaned.length === 0) {
+            throw new ValidationError('Wish message cannot be empty', 'message');
+        }
+        // B-4: spec §7.6 asks for REJECT on oversize after cleaning, not clamp.
+        if (cleaned.length > 140) {
+            throw new ValidationError('Wish message too long (max 140)', 'message');
+        }
+        return cleaned;
+    }
+
+    // V4.1 (P1-1): rolling-window rate-limit check parameterised by window
+    // length. The default validateRateLimit uses a fixed 60s window with
+    // per-action caps which is wrong for bursty actions (e.g. 20/10s
+    // attempt_wish_discovery) — a client could fire the whole budget in one
+    // tick. This helper enforces a true rolling window.
+    //
+    // Keys are suffixed with windowMs so this check lives alongside (not
+    // instead of) the existing validateRateLimit global cap.
+    static checkRollingWindow(playerId, action, maxInWindow, windowMs, rateLimits) {
+        if (!playerId || typeof playerId !== 'string') {
+            throw new ValidationError('Invalid player ID for rate limiting');
+        }
+        if (!action || typeof action !== 'string') {
+            throw new ValidationError('Invalid action for rate limiting');
+        }
+        if (playerId.length > 100 || action.length > 50) {
+            throw new ValidationError('Player ID or action too long');
+        }
+        const key = `${playerId}:${action}:rw${windowMs}`;
+        const now = Date.now();
+        const arr = (rateLimits.get(key) || []).filter(t => t > now - windowMs);
+        if (arr.length >= maxInWindow) {
+            throw new ValidationError('Rate limit exceeded. Please slow down.', 'rateLimit');
+        }
+        arr.push(now);
+        rateLimits.set(key, arr);
+        return true;
     }
     
     static validateRateLimit(playerId, action, rateLimits) {
@@ -216,6 +309,18 @@ class GameValidator {
             maxAttempts = 120; // Movement needs high limit
         } else if (action === 'buy_item' || action === 'use_item') {
             maxAttempts = 20;
+        } else if (action === 'hide_wish') {
+            // V4 spec: 1 per 60s per player. The 60s window matches the
+            // rate-limiter's cutoff so we simply cap at 1.
+            maxAttempts = 1;
+        } else if (action === 'tap_wish_jar') {
+            // V4 spec: 1 per 1s — the 60s-window-based max here (60) is an
+            // upper bound; the wishSystem itself idempotently handles repeat
+            // taps from the same player within a jar.
+            maxAttempts = 60;
+        } else if (action === 'attempt_wish_discovery') {
+            // V4 spec: 20 per 10s. Over a 60s window that's 120 — cap here.
+            maxAttempts = 120;
         }
         
         // Check rate limit

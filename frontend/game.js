@@ -48,10 +48,20 @@ let shopState = {
         { id: 'hoppidas_jacket', name: 'Hoppidas Trefoil', price: 20, icon: '🧥', desc: 'Three-stripe classic', type: 'wearable' },
         { id: 'cloud_kicks', name: 'On Cloud-Hop Kicks', price: 22, icon: '👟', desc: 'Swiss cushion pods', type: 'wearable' },
         { id: 'bunnci_beanie', name: 'Bunnci Beanie', price: 19, icon: '🎩', desc: 'Green-red stripe classic', type: 'wearable' },
-        { id: 'chanel_pearls', name: 'Chabun N°5 Pearls', price: 28, icon: '⚪', desc: 'Baroque pearl strands', type: 'wearable' }
+        { id: 'chanel_pearls', name: 'Chabun N°5 Pearls', price: 28, icon: '⚪', desc: 'Baroque pearl strands', type: 'wearable' },
+        { id: 'balenciaga_hoodie', name: 'Bunniaga Hoodie', price: 26, icon: '🖤', desc: 'Oversized street luxury', type: 'wearable' },
+        { id: 'boss_suit', name: 'Hops Boss Blazer', price: 32, icon: '🤵', desc: 'Navy tailored blazer', type: 'wearable' },
+        { id: 'pierre_cardin_tie', name: 'Pierre Hoppin Tie', price: 18, icon: '👔', desc: 'Burgundy silk tie', type: 'wearable' },
+        { id: 'calvin_klein_shades', name: 'Calvin Bunny Frames', price: 24, icon: '🕶️', desc: 'Matte black rectangular', type: 'wearable' },
+        { id: 'balenciaga_sneakers', name: 'Bunniaga Triple-Hop', price: 35, icon: '👟', desc: 'Chunky triple-sole', type: 'wearable' },
+        { id: 'boss_watch', name: 'Hops Boss Chrono', price: 30, icon: '⌚', desc: 'Silver chronograph', type: 'wearable' }
     ]
 };
+let shopPage = 0;
 let inventoryState = {}; // { itemId: quantity }
+let neighborhoodState = { isOpen: false, families: [], visitingFamily: null, visitingCode: null };
+let isVisitorMode = false;
+let petCuddleState = { active: false, endTime: 0, babyId: null };
 
 let notificationQueue = [];
 
@@ -218,7 +228,44 @@ let dragState = {
     startPosition: { x: 0, y: 0 },
     currentPosition: { x: 0, y: 0 }
 };
+// === BUNNY SPRITE SYSTEM ===
+const bunnySprites = {
+    parentBlack: null,
+    parentWhite: null,
+    babyNormal: {},   // skin # → Image
+    babyHappy: {},
+    babySleeping: {}
+};
+function loadBunnySprite(url) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => resolve(null);
+        img.src = url;
+    });
+}
+async function preloadParentSprites() {
+    bunnySprites.parentBlack = await loadBunnySprite('/assets/bunnies/black-bunny.svg');
+    bunnySprites.parentWhite = await loadBunnySprite('/assets/bunnies/white-bunny.svg');
+}
+function getBabySprite(skin, mood) {
+    if (!skin) skin = 1;
+    const cache = mood === 'happy' ? bunnySprites.babyHappy : (mood === 'sleeping' ? bunnySprites.babySleeping : bunnySprites.babyNormal);
+    if (cache[skin]) return cache[skin];
+    if (cache[skin] === undefined) {
+        cache[skin] = null; // Mark loading
+        const prefix = mood === 'happy' ? 'baby-bunny-happy' : (mood === 'sleeping' ? 'baby-bunny-sleeping' : 'baby-bunny');
+        loadBunnySprite(`/assets/bunnies/${prefix}-${skin}.svg`).then(img => {
+            cache[skin] = img;
+            backgroundNeedsRedraw = true;
+            dirtyBackground = true;
+        });
+    }
+    return null;
+}
+
 let bunnyPositions = {};
+let bunnyWanderState = {};
 let parentBunnyPositions = {
     parent_black: { x: 0, y: 0, targetX: 0, targetY: 0, initialized: false },
     parent_white: { x: 0, y: 0, targetX: 0, targetY: 0, initialized: false, _lastLocalMove: 0 }
@@ -235,12 +282,6 @@ let hungerValue, happinessValue, energyValue, cleanlinessValue, loveValue;
 let gardenPlot, gardenQuality, harvestTimer;
 let feedBtn, playBtn, sleepBtn, cleanBtn, petBtn;
 
-// 2D Graphics Assets
-let bunnySprites = {
-    black: { adult: null, baby: null },
-    white: { adult: null, baby: null }
-};
-
 // Animation system
 let animations = new Map();
 let particles = [];
@@ -250,11 +291,15 @@ document.addEventListener('DOMContentLoaded', function() {
     console.log('🐰 Bunny Family 2D - Initializing...');
     
     initializeDOM();
+    preloadParentSprites();
     // DON'T initialize canvas yet - do it when switching to game view
     initializeSocketConnection();
     initializeEventListeners();
     // DON'T start game loop yet - start it when switching to game view
-    
+
+    // Whispered Wishes (V4) — safe to init here; binds to elements already in DOM.
+    try { WishUI.init(); } catch (e) { console.warn('WishUI init failed:', e); }
+
     console.log('✅ Lobby initialized successfully! Canvas will init when starting game.');
 });
 
@@ -591,6 +636,10 @@ function onRoomCreated(data) {
     // Reset bunny positions so they get initialized fresh from game state
     bunnyPositions = {};
 
+    // V4.1 (F-1/F-4): rehydrate WishUI from the initial snapshot so that a
+    // reconnect / refresh mid-jar restores the jar overlay and own-wish HUD.
+    try { if (window.WishUI && gameState && gameState.wishSystem) WishUI.syncFromGameState(gameState.wishSystem); } catch (_) {}
+
     // CRITICAL FIX: Force initial render after successful room creation
     // Use 300ms to ensure canvas is fully initialized (canvas init is 100ms)
     setTimeout(() => {
@@ -633,6 +682,10 @@ function onJoinedRoom(data) {
     switchToGameView();
     updateConnectionStatus('connected', 'Connected');
 
+    // V4.1 (F-1/F-4): rehydrate WishUI from the initial snapshot so that a
+    // reconnect / refresh mid-jar restores the jar overlay and own-wish HUD.
+    try { if (window.WishUI && gameState && gameState.wishSystem) WishUI.syncFromGameState(gameState.wishSystem); } catch (_) {}
+
     // CRITICAL FIX: Force initial render after successful room join
     setTimeout(() => {
         if (canvas && ctx) {
@@ -658,11 +711,13 @@ function onPartnerConnected(data) {
 function onGameStateUpdate(newGameState) {
     gameState = newGameState;
 
-    // Debug: log wearables
+    // Preload baby sprites for all moods
     if (newGameState.babies) {
         newGameState.babies.forEach(b => {
-            if (b.wearables && Object.keys(b.wearables).length > 0) {
-                console.log(`[WEARABLES] ${b.name} wearing:`, JSON.stringify(b.wearables));
+            if (b.bunnySkin) {
+                getBabySprite(b.bunnySkin, 'normal');
+                getBabySprite(b.bunnySkin, 'happy');
+                getBabySprite(b.bunnySkin, 'sleeping');
             }
         });
     }
@@ -723,6 +778,11 @@ function onGameStateUpdate(newGameState) {
 
     updateGameUI();
 
+    // V4.1 (F-1/F-4): keep WishUI in sync with server-authoritative wishSystem
+    // — in particular, show/hide the jar overlay if a jar is active on
+    // reconnect, and refresh own-wish HUD from the redacted projection.
+    try { if (window.WishUI && newGameState && newGameState.wishSystem) WishUI.syncFromGameState(newGameState.wishSystem); } catch (_) {}
+
     // CRITICAL FIX: Force render when game state updates
     if (currentPhase === 'game' && canvas && ctx) {
         render();
@@ -777,6 +837,21 @@ function onGameEvent(data) {
         case 'daily_reward_claimed':
             showMessage(data.message, 'success');
             break;
+        case 'milestone_reward':
+            showMilestoneReward(data);
+            break;
+    }
+}
+
+function showMilestoneReward(data) {
+    showMessage(data.message, 'success');
+    updateCarrotCount();
+    // Sparkle effect at gem counter
+    const gemEl = document.getElementById('gemCount');
+    if (gemEl) {
+        gemEl.parentElement.style.transform = 'scale(1.3)';
+        gemEl.parentElement.style.transition = 'transform 0.3s';
+        setTimeout(() => { gemEl.parentElement.style.transform = 'scale(1)'; }, 600);
     }
 }
 
@@ -1041,9 +1116,13 @@ function initializeEventListeners() {
         shopBtn.addEventListener('click', toggleShop);
     }
     
-    const basketBtn = document.getElementById('basketBtn');
-    if (basketBtn) {
-        basketBtn.addEventListener('click', toggleBasket);
+    const closetBtn = document.getElementById('closetBtn');
+    if (closetBtn) {
+        closetBtn.addEventListener('click', toggleCloset);
+    }
+    const neighborhoodBtn = document.getElementById('neighborhoodBtn');
+    if (neighborhoodBtn) {
+        neighborhoodBtn.addEventListener('click', toggleNeighborhood);
     }
 
     const minigameBtn = document.getElementById('minigameBtn');
@@ -1297,7 +1376,11 @@ function moveBunnyToCave(babyId) {
         babyId: babyId,
         timestamp: Date.now()
     });
-    
+
+    // Whispered Wishes (V4.1 / F-5): cave entry can reveal a partner wish
+    // hidden at the cave spot. Fire the natural discovery probe.
+    try { if (window.WishUI) WishUI.attemptDiscoveryFor('cave_enter'); } catch (_) {}
+
     showMessage(`${baby.name || 'Baby'} entered the cozy cave! 🏔️`, 'success');
     console.log(`🏔️ ${babyId} entered cave`);
 }
@@ -1324,7 +1407,11 @@ function moveBunnyFromCave(babyId) {
         y: newY,
         timestamp: Date.now()
     });
-    
+
+    // Whispered Wishes (V4.1 / F-5): cave exit can reveal a partner wish
+    // hidden at the cave spot. Fire the natural discovery probe.
+    try { if (window.WishUI) WishUI.attemptDiscoveryFor('cave_exit'); } catch (_) {}
+
     showMessage(`${baby.name || 'Baby'} left the cozy cave! 🌅`, 'success');
     console.log(`🌅 ${babyId} exited cave`);
 }
@@ -1433,13 +1520,13 @@ function performAction(action) {
         return;
     }
     
-    // Find the selected baby
+    // Find the selected baby (sleep works on all babies, others need selection)
     const baby = gameState.babies.find(b => b.id === selectedBabyId);
-    if (!baby) {
+    if (!baby && action !== 'sleep') {
         showMessage('No baby selected.', 'error');
         return;
     }
-    
+
     // Send action to server
     const actionMap = {
         'feed': 'feed_baby',
@@ -1448,11 +1535,14 @@ function performAction(action) {
         'clean': 'clean_baby',
         'pet': 'pet_baby'
     };
-    
+
     const socketAction = actionMap[action];
     if (socketAction) {
-        socket.emit(socketAction, { babyId: selectedBabyId });
-        
+        socket.emit(socketAction, { babyId: action === 'sleep' ? 'family' : selectedBabyId });
+
+        // Whispered Wishes: probe for partner-hidden wish at associated spots
+        try { if (window.WishUI) WishUI.attemptDiscoveryFor(action); } catch (_) {}
+
         // Switch scene based on action (with lock so it doesn't get auto-overridden)
         if (action === 'feed') {
             setScene('kitchen', { lock: true });
@@ -1463,9 +1553,14 @@ function performAction(action) {
         } else if (action === 'clean') {
             setScene('bathroom', { lock: true });
         }
-        
+
         // Visual feedback
         createActionEffect(action, myPlayerId);
+
+        // Pet cuddle — parents move toward baby
+        if (action === 'pet' && selectedBabyId) {
+            petCuddleState = { active: true, endTime: Date.now() + 4000, babyId: selectedBabyId };
+        }
     }
 }
 
@@ -1474,8 +1569,11 @@ function harvestCarrots() {
         showMessage('Not connected to server.', 'error');
         return;
     }
-    
+
     socket.emit('harvest_carrots');
+
+    // Whispered Wishes: harvesting can reveal partner wishes hidden at garden/pile
+    try { if (window.WishUI) WishUI.attemptDiscoveryFor('harvest'); } catch (_) {}
 }
 
 // ===== ENHANCED CANVAS INTERACTIONS WITH DRAGGING =====
@@ -1575,15 +1673,19 @@ function onTouchEnd(event) {
 }
 
 function startDrag(x, y, inputType) {
+    // Block all input in visitor mode
+    if (isVisitorMode) return;
+
     // Intercept clicks for active mini-games
     if (miniGameState.activeGame) {
         handleMiniGameClick(x, y);
         return;
     }
 
-    // Intercept clicks when the luxury shop scene is open
+    // In shop: check if clicking a bunny first (bunnies are draggable even in shop)
     if (currentScene === 'shop' && shopState.isOpen) {
-        if (handleShopClick(x, y)) return;
+        const clickedBunny = findBunnyAt(x, y);
+        if (!clickedBunny && handleShopClick(x, y)) return;
     }
 
     if (!gameState || !gameState.babies) return;
@@ -1621,7 +1723,7 @@ function startDrag(x, y, inputType) {
         }
         bunnyAnimStates[clickedBaby.id].isBeingDragged = true;
         bunnyAnimStates[clickedBaby.id].targetScale = 1.2;
-        bunnyAnimStates[clickedBaby.id].bounceSpeed = -8; // Initial pickup bounce
+        bunnyAnimStates[clickedBaby.id].bounceSpeed = 0;
 
         // Create pickup effect
         createPickupEffect(x, y);
@@ -1766,7 +1868,7 @@ function endDrag() {
     if (bunnyAnimStates[bunnyId]) {
         bunnyAnimStates[bunnyId].isBeingDragged = false;
         bunnyAnimStates[bunnyId].targetScale = 1.0;
-        bunnyAnimStates[bunnyId].bounceSpeed = -4; // Drop bounce
+        bunnyAnimStates[bunnyId].bounceSpeed = 0;
     }
 
     if (dragState.isParent) {
@@ -1860,23 +1962,85 @@ function getBunnyPosition(bunnyId) {
 
 function updateBunnyPositions(deltaTime) {
     if (!gameState || !gameState.babies) return;
-    
+    const now = Date.now();
+    const rect = canvas ? canvas.getBoundingClientRect() : { width: 800, height: 600 };
+    const cw = rect.width || 800;
+    const ch = rect.height || 600;
+
+    // Clean up state for removed bunnies
+    const activeIds = new Set(gameState.babies.map(b => b.id).filter(Boolean));
+    for (const id of Object.keys(bunnyWanderState)) {
+        if (!activeIds.has(id)) {
+            delete bunnyWanderState[id];
+            delete bunnyPositions[id];
+            delete bunnyAnimStates[id];
+        }
+    }
+
     gameState.babies.forEach((baby, index) => {
+        if (!baby || !baby.id) return;
         const bunnyId = baby.id;
         let position = bunnyPositions[bunnyId];
-        
+
         if (!position) {
             position = getBunnyPosition(bunnyId);
         }
-        
-        // Only update position if not being dragged
-        if (!dragState.isDragging || dragState.targetBunny?.id !== bunnyId) {
-            // Smooth movement towards target
+
+        // Wandering system — bunnies hop to random nearby spots
+        if (!bunnyWanderState[bunnyId]) {
+            bunnyWanderState[bunnyId] = {
+                nextWanderTime: now + 2000 + Math.random() * 4000,
+                hopPhase: 0,       // 0 = idle, 0→1 = hopping
+                hopStartX: position.x,
+                hopStartY: position.y,
+                hopEndX: position.x,
+                hopEndY: position.y,
+                hopDuration: 400,
+                hopStartTime: 0,
+                facing: 1          // 1 = right, -1 = left
+            };
+        }
+        const wander = bunnyWanderState[bunnyId];
+
+        const isBeingDragged = dragState.isDragging && dragState.targetBunny?.id === bunnyId;
+        const isSleeping = baby.sleeping;
+        const isEgg = baby.stage === 'egg';
+
+        if (!isBeingDragged && !isSleeping && !isEgg && wander.hopPhase === 0 && now >= wander.nextWanderTime) {
+            const angle = Math.random() * Math.PI * 2;
+            const dist = 30 + Math.random() * 60;
+            let tx = position.x + Math.cos(angle) * dist;
+            let ty = position.y + Math.sin(angle) * dist * 0.4;
+            tx = Math.max(60, Math.min(cw - 60, tx));
+            ty = Math.max(ch * 0.35, Math.min(ch - 60, ty));
+            wander.hopStartX = position.x;
+            wander.hopStartY = position.y;
+            wander.hopEndX = tx;
+            wander.hopEndY = ty;
+            wander.hopDuration = 300 + Math.random() * 200;
+            wander.hopStartTime = now;
+            wander.hopPhase = 1;
+            wander.facing = tx >= position.x ? 1 : -1;
+            wander.nextWanderTime = now + wander.hopDuration + 3000 + Math.random() * 5000;
+        }
+
+        if (wander.hopPhase === 1) {
+            const elapsed = now - wander.hopStartTime;
+            const t = Math.min(1, elapsed / wander.hopDuration);
+            const ease = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+            position.x = wander.hopStartX + (wander.hopEndX - wander.hopStartX) * ease;
+            position.y = wander.hopStartY + (wander.hopEndY - wander.hopStartY) * ease;
+            position.targetX = position.x;
+            position.targetY = position.y;
+            if (t >= 1) {
+                wander.hopPhase = 0;
+            }
+        } else if (!isBeingDragged) {
             const lerpFactor = 0.1;
             position.x = lerp(position.x, position.targetX, lerpFactor);
             position.y = lerp(position.y, position.targetY, lerpFactor);
         }
-        
+
         // Update animation states
         if (bunnyAnimStates[bunnyId]) {
             updateBunnyAnimationState(bunnyId, deltaTime);
@@ -2076,7 +2240,12 @@ function render() {
     
     // Draw background directly (detailed scenes use global ctx)
     drawBackground();
-    drawParentBunnies(); // Draw parent bunnies even without game state
+    // Skip normal parent rendering during family cuddle (they're drawn inside the huddle)
+    const nonEggBabies = gameState?.babies?.filter(b => b.stage !== 'egg') || [];
+    const allSleeping = nonEggBabies.length >= 1 && nonEggBabies.every(b => b.sleeping);
+    if (!allSleeping) {
+        drawParentBunnies();
+    }
     
     if (!gameState) {
         drawLoadingScreen();
@@ -2087,6 +2256,8 @@ function render() {
     drawSceneOverlays();
     drawActiveParticles();
     drawWeatherEffects();
+    // Whispered Wishes: faint shimmer overlay on partner-wish hinted spots
+    try { if (window.WishUI) WishUI.drawShimmer(); } catch (_) {}
     if (footballGame.active && canvas) {
         const rect = canvas.getBoundingClientRect();
         drawFootballOverlay(rect.width, rect.height);
@@ -4451,7 +4622,7 @@ function drawPlaygroundBackground(width, height) {
     // === SLIDE (playground equipment) ===
     // Equipment scale — bump everything up so the set is sized to a parent
     // bunny (~60px radius) instead of the previous toy-town look.
-    const PLAY_EQUIP_SCALE = 1.8;
+    const PLAY_EQUIP_SCALE = 3.0;
     const slideX = width * 0.18, slideBaseY = height * 0.88;
     ctx.save();
     ctx.translate(slideX, slideBaseY);
@@ -5191,6 +5362,20 @@ let shopItemClickZones = [];
 // Shop basket — items added but not yet purchased
 let shopBasket = [];
 
+function getShopItemSlot(itemId) {
+    const neckItems = ['carrot_treat', 'scarf_red', 'scarf_blue', 'night_light', 'hopmes_scarf', 'chanel_pearls', 'pierre_cardin_tie'];
+    const backItems = ['soft_blanket', 'louis_bunitton', 'hoppidas_jacket', 'balenciaga_hoodie', 'boss_suit'];
+    const headItems = ['bow_pink', 'hat_top', 'decorative_plant', 'hike_cap', 'bunnci_beanie'];
+    const eyesItems = ['glasses', 'dior_shades', 'calvin_klein_shades'];
+    const heldItems = ['toy_ball', 'cloud_kicks', 'balenciaga_sneakers', 'boss_watch'];
+    if (neckItems.includes(itemId)) return 'neck';
+    if (backItems.includes(itemId)) return 'back';
+    if (headItems.includes(itemId)) return 'head';
+    if (eyesItems.includes(itemId)) return 'eyes';
+    if (heldItems.includes(itemId)) return 'held';
+    return 'neck';
+}
+
 function drawShopBackground(width, height) {
     const time = Date.now() * 0.001;
     const floorY = height * 0.70;
@@ -5323,181 +5508,282 @@ function drawShopBackground(width, height) {
     ctx.fillStyle = chGlow;
     ctx.fillRect(chX - 80, chY - 75, 160, 160);
 
-    // === DISPLAY SHELVES with wall items ===
+    // === PAGINATED TWO-WALL LAYOUT — 4 items per page, large display ===
     const items = shopState.items;
-    const cols = 6;
-    const rows = 3;
-    const shelfMarginX = width * 0.06;
-    const shelfMarginY = height * 0.11;
-    const shelfW = width - shelfMarginX * 2 - width * 0.28; // leave room on right for counter
-    const shelfH = wainY - shelfMarginY - 20;
-    const cellW = shelfW / cols;
-    const cellH = shelfH / rows;
+    const perPage = 4;
+    const totalPages = Math.ceil(items.length / perPage);
+    if (shopPage >= totalPages) shopPage = 0;
+    const pageItems = items.slice(shopPage * perPage, (shopPage + 1) * perPage);
+    const leftItems = pageItems.slice(0, 2);
+    const rightItems = pageItems.slice(2, 4);
 
-    // Shelf boards (2 horizontal shelves)
-    for (let r = 0; r <= rows; r++) {
-        const sy = shelfMarginY + r * cellH;
-        // Shelf board
-        const boardG = ctx.createLinearGradient(0, sy - 3, 0, sy + 6);
-        boardG.addColorStop(0, '#c8a050');
-        boardG.addColorStop(0.5, '#f0d080');
-        boardG.addColorStop(1, '#8a6010');
-        ctx.fillStyle = boardG;
-        ctx.fillRect(shelfMarginX - 10, sy, shelfW + 20, 6);
-        // Shelf shadow underneath
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.2)';
-        ctx.fillRect(shelfMarginX - 10, sy + 6, shelfW + 20, 3);
-    }
+    const wallW = width * 0.32;
+    const wallMargin = width * 0.03;
+    const shelfTop = height * 0.10;
+    const shelfBot = wainY - 8;
+    const shelfH = shelfBot - shelfTop;
 
-    // Items displayed on the shelves
-    items.forEach((item, idx) => {
-        const col = idx % cols;
-        const row = Math.floor(idx / cols);
-        if (row >= rows) return;
-        const cellX = shelfMarginX + col * cellW;
-        const cellY = shelfMarginY + row * cellH;
-        const itemCx = cellX + cellW / 2;
-        const itemCy = cellY + cellH * 0.55;
+    function drawItemCard(cx, cy, cardW, cardH, item) {
+        // Luxury card background with velvet gradient
+        const cardBg = ctx.createLinearGradient(cx, cy - cardH / 2, cx, cy + cardH / 2);
+        cardBg.addColorStop(0, 'rgba(255, 253, 245, 0.85)');
+        cardBg.addColorStop(0.5, 'rgba(255, 248, 235, 0.75)');
+        cardBg.addColorStop(1, 'rgba(245, 235, 215, 0.85)');
+        ctx.fillStyle = cardBg;
+        ctx.fillRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH);
+        // Gold frame border
+        const frameG = ctx.createLinearGradient(cx - cardW / 2, cy, cx + cardW / 2, cy);
+        frameG.addColorStop(0, '#c8a050');
+        frameG.addColorStop(0.3, '#f0d880');
+        frameG.addColorStop(0.5, '#fff8d0');
+        frameG.addColorStop(0.7, '#f0d880');
+        frameG.addColorStop(1, '#c8a050');
+        ctx.strokeStyle = frameG;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(cx - cardW / 2, cy - cardH / 2, cardW, cardH);
+        // Inner frame line
+        ctx.strokeStyle = 'rgba(200, 160, 80, 0.25)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(cx - cardW / 2 + 4, cy - cardH / 2 + 4, cardW - 8, cardH - 8);
 
-        // Display pedestal
-        const pedG = ctx.createLinearGradient(itemCx - 30, 0, itemCx + 30, 0);
-        pedG.addColorStop(0, '#2a1810');
-        pedG.addColorStop(0.5, '#4a3020');
-        pedG.addColorStop(1, '#1a1008');
-        ctx.fillStyle = pedG;
-        ctx.fillRect(itemCx - 30, cellY + cellH - 22, 60, 15);
-        // Pedestal top shine
-        ctx.fillStyle = '#c8a050';
-        ctx.fillRect(itemCx - 30, cellY + cellH - 22, 60, 2);
-
-        // Soft spotlight from above on each item
-        const spotG = ctx.createRadialGradient(itemCx, itemCy - 10, 0, itemCx, itemCy, 45);
-        spotG.addColorStop(0, 'rgba(255, 250, 220, 0.35)');
-        spotG.addColorStop(1, 'rgba(255, 250, 220, 0)');
+        // Warm spotlight from above
+        const spotR = cardW * 0.5;
+        const spotG = ctx.createRadialGradient(cx, cy - cardH * 0.15, 0, cx, cy - cardH * 0.05, spotR);
+        spotG.addColorStop(0, 'rgba(255, 245, 210, 0.6)');
+        spotG.addColorStop(0.6, 'rgba(255, 240, 200, 0.2)');
+        spotG.addColorStop(1, 'rgba(255, 240, 200, 0)');
         ctx.fillStyle = spotG;
-        ctx.fillRect(itemCx - 45, cellY, 90, cellH);
+        ctx.beginPath();
+        ctx.arc(cx, cy - cardH * 0.1, spotR, 0, Math.PI * 2);
+        ctx.fill();
 
-        // Draw a mini wearable preview
-        drawShopItemPreview(item, itemCx, itemCy);
+        // Ghost mannequin silhouette + item displayed on it — large luxury display
+        const itemSize = Math.min(cardW * 0.45, cardH * 0.38);
+        const mannY = cy - cardH * 0.06;
+        ctx.save();
+        ctx.translate(cx, mannY);
+        // Faint bunny silhouette
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#8a7a6a';
+        ctx.beginPath();
+        ctx.ellipse(0, 0, itemSize, itemSize * 0.82, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.ellipse(-itemSize * 0.3, -itemSize * 0.85, itemSize * 0.22, itemSize * 0.55, -0.15, 0, Math.PI * 2);
+        ctx.ellipse(itemSize * 0.3, -itemSize * 0.85, itemSize * 0.22, itemSize * 0.55, 0.15, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // Item on mannequin
+        if (typeof drawBunnyWearables === 'function') {
+            const wearSlot = getShopItemSlot(item.id);
+            const wearObj = {};
+            wearObj[wearSlot] = { id: item.id, itemId: item.id, color: item.color || '#ff69b4' };
+            drawBunnyWearables(0, 0, itemSize, wearObj);
+        }
+        ctx.restore();
 
-        // Item name (elegant font)
-        ctx.fillStyle = '#2a1810';
-        ctx.font = 'bold 10px Georgia';
+        // Pedestal
+        const pedW = cardW * 0.5;
+        const pedY = mannY + itemSize * 0.85;
+        ctx.fillStyle = '#3a2418';
+        ctx.fillRect(cx - pedW / 2, pedY, pedW, 8);
+        ctx.fillStyle = '#c8a050';
+        ctx.fillRect(cx - pedW / 2, pedY, pedW, 2);
+
+        // Item name — elegant
+        const nameSize = Math.max(12, Math.min(16, cardW * 0.09));
+        ctx.fillStyle = '#1a0a00';
+        ctx.font = `bold ${nameSize}px Georgia`;
         ctx.textAlign = 'center';
-        ctx.fillText(item.name, itemCx, cellY + cellH - 30);
-        // Price in gold
-        ctx.fillStyle = '#8a6010';
-        ctx.font = 'italic 11px Georgia';
-        ctx.fillText(item.price + ' carrots', itemCx, cellY + cellH - 1);
+        ctx.fillText(item.name, cx, cy + cardH * 0.30);
 
-        // Already in basket indicator
-        const inBasket = shopBasket.includes(item.id);
-        if (inBasket) {
-            ctx.strokeStyle = '#c8a050';
-            ctx.lineWidth = 2;
-            ctx.setLineDash([4, 2]);
-            ctx.strokeRect(cellX + 2, cellY + 2, cellW - 4, cellH - 4);
-            ctx.setLineDash([]);
-            // "IN BASKET" badge
-            ctx.fillStyle = '#c8a050';
-            ctx.fillRect(cellX + 4, cellY + 4, 56, 14);
-            ctx.fillStyle = '#fff';
-            ctx.font = 'bold 9px Arial';
-            ctx.textAlign = 'center';
-            ctx.fillText('✓ IN CART', cellX + 32, cellY + 14);
+        // Description
+        if (item.desc) {
+            ctx.fillStyle = '#7a6a5a';
+            ctx.font = `italic ${Math.max(10, nameSize * 0.72)}px Georgia`;
+            ctx.fillText(item.desc, cx, cy + cardH * 0.30 + nameSize + 1);
         }
 
-        // Register click zone
-        shopItemClickZones.push({
-            x: cellX, y: cellY, w: cellW, h: cellH, itemId: item.id
-        });
+        // Price badge — gold pill shape
+        const priceY = cy + cardH / 2 - 18;
+        const priceText = item.price + ' 🥕';
+        ctx.font = `bold ${Math.max(12, nameSize * 0.9)}px Georgia`;
+        const priceW = ctx.measureText(priceText).width + 20;
+        const pillG = ctx.createLinearGradient(cx - priceW / 2, priceY - 8, cx + priceW / 2, priceY + 8);
+        pillG.addColorStop(0, '#c8a040');
+        pillG.addColorStop(0.5, '#f0d070');
+        pillG.addColorStop(1, '#c8a040');
+        ctx.fillStyle = pillG;
+        ctx.beginPath();
+        ctx.ellipse(cx, priceY, priceW / 2, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#2a1810';
+        ctx.fillText(priceText, cx, priceY + 4);
+
+        // In basket indicator
+        if (shopBasket.includes(item.id)) {
+            ctx.save();
+            ctx.strokeStyle = '#4caf50';
+            ctx.lineWidth = 3;
+            ctx.strokeRect(cx - cardW / 2 + 3, cy - cardH / 2 + 3, cardW - 6, cardH - 6);
+            ctx.fillStyle = 'rgba(76, 175, 80, 0.9)';
+            const badgeW = Math.min(90, cardW * 0.6);
+            ctx.fillRect(cx - badgeW / 2, cy - cardH / 2 + 6, badgeW, 22);
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 12px Arial';
+            ctx.fillText('✓ IN CART', cx, cy - cardH / 2 + 22);
+            ctx.restore();
+        }
+
+        shopItemClickZones.push({ x: cx - cardW / 2, y: cy - cardH / 2, w: cardW, h: cardH, itemId: item.id });
         ctx.textAlign = 'left';
+    }
+
+    // Shelf boards (decorative, 2 per wall)
+    [shelfTop, shelfTop + shelfH / 2, shelfBot].forEach(sy => {
+        const boardG = ctx.createLinearGradient(0, sy - 2, 0, sy + 8);
+        boardG.addColorStop(0, '#c8a050');
+        boardG.addColorStop(0.4, '#f0d080');
+        boardG.addColorStop(1, '#8a6010');
+        ctx.fillStyle = boardG;
+        // Left wall shelves
+        ctx.fillRect(wallMargin - 6, sy, wallW + 12, 7);
+        // Right wall shelves
+        ctx.fillRect(width - wallMargin - wallW - 6, sy, wallW + 12, 7);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.12)';
+        ctx.fillRect(wallMargin - 6, sy + 7, wallW + 12, 3);
+        ctx.fillRect(width - wallMargin - wallW - 6, sy + 7, wallW + 12, 3);
     });
 
-    // === COUNTER on the right side with sales bunny ===
-    const countX = width - width * 0.25;
-    const countY = wainY - 40;
-    const countW = width * 0.22;
-    const countH = floorY - countY;
-    // Counter body (mahogany)
-    const countG = ctx.createLinearGradient(0, countY, 0, countY + countH);
-    countG.addColorStop(0, '#7a3818');
-    countG.addColorStop(0.5, '#a05830');
-    countG.addColorStop(1, '#4a1a08');
-    ctx.fillStyle = countG;
-    ctx.fillRect(countX, countY, countW, countH);
-    // Counter top (marble)
-    const topMarbleG = ctx.createLinearGradient(0, countY, 0, countY + 8);
-    topMarbleG.addColorStop(0, '#ffffff');
-    topMarbleG.addColorStop(1, '#c8c0b0');
-    ctx.fillStyle = topMarbleG;
-    ctx.fillRect(countX - 5, countY, countW + 10, 8);
-    // Counter panels
-    ctx.strokeStyle = 'rgba(0, 0, 0, 0.35)';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(countX + 8, countY + 15, countW - 16, countH - 25);
-    // Gold trim
-    ctx.strokeStyle = '#c8a050';
-    ctx.lineWidth = 1;
-    ctx.strokeRect(countX + 10, countY + 17, countW - 20, countH - 29);
+    // Draw items — 2 per wall, stacked vertically
+    const cardW = wallW * 0.9;
+    const cardH = shelfH * 0.46;
 
-    // Cash register on counter
-    const regX = countX + countW * 0.3, regY = countY - 18;
-    ctx.fillStyle = '#d4af37';
-    ctx.fillRect(regX, regY, 26, 18);
-    ctx.fillStyle = '#2a1810';
-    ctx.fillRect(regX + 2, regY + 2, 22, 8);
-    ctx.fillStyle = '#8bc34a';
-    ctx.fillRect(regX + 4, regY + 4, 18, 4);
+    leftItems.forEach((item, i) => {
+        const cx = wallMargin + wallW / 2;
+        const cy = shelfTop + shelfH * (0.27 + i * 0.5);
+        drawItemCard(cx, cy, cardW, cardH, item);
+    });
+
+    rightItems.forEach((item, i) => {
+        const cx = width - wallMargin - wallW / 2;
+        const cy = shelfTop + shelfH * (0.27 + i * 0.5);
+        drawItemCard(cx, cy, cardW, cardH, item);
+    });
+
+    // Page navigation arrows
+    const arrowY = shelfTop + shelfH / 2;
+    const arrowSize = 22;
+    // Left arrow (prev)
+    if (shopPage > 0) {
+        const ax = wallMargin - 18;
+        ctx.fillStyle = 'rgba(200, 160, 80, 0.85)';
+        ctx.beginPath();
+        ctx.moveTo(ax + arrowSize, arrowY - arrowSize);
+        ctx.lineTo(ax, arrowY);
+        ctx.lineTo(ax + arrowSize, arrowY + arrowSize);
+        ctx.closePath();
+        ctx.fill();
+        shopItemClickZones.push({ x: ax - 5, y: arrowY - arrowSize - 5, w: arrowSize + 10, h: arrowSize * 2 + 10, action: 'prev_page' });
+    }
+    // Right arrow (next)
+    if (shopPage < totalPages - 1) {
+        const ax = width - wallMargin + 18;
+        ctx.fillStyle = 'rgba(200, 160, 80, 0.85)';
+        ctx.beginPath();
+        ctx.moveTo(ax - arrowSize, arrowY - arrowSize);
+        ctx.lineTo(ax, arrowY);
+        ctx.lineTo(ax - arrowSize, arrowY + arrowSize);
+        ctx.closePath();
+        ctx.fill();
+        shopItemClickZones.push({ x: ax - arrowSize - 5, y: arrowY - arrowSize - 5, w: arrowSize + 10, h: arrowSize * 2 + 10, action: 'next_page' });
+    }
+    // Page indicator
     ctx.fillStyle = '#8a6010';
-    ctx.fillRect(regX + 4, regY + 12, 18, 2);
-    ctx.fillRect(regX + 8, regY + 12, 10, 4);
+    ctx.font = 'bold 13px Georgia';
+    ctx.textAlign = 'center';
+    ctx.fillText(`Page ${shopPage + 1} / ${totalPages}`, width / 2, shelfBot + 15);
+    ctx.textAlign = 'left';
 
-    // === SALES BUNNY behind counter (top half visible) ===
-    const sbX = countX + countW * 0.65;
-    const sbY = countY - 8;
-    drawSalesBunny(sbX, sbY, time);
-
-    // "Welcome!" speech bubble
+    // === SALES BUNNY — large, center front ===
+    const sbX = width / 2;
+    const sbY = floorY - 15;
     ctx.save();
+    ctx.translate(sbX, sbY);
+    const sbScale = Math.min(width, height) * 0.003;
+    ctx.scale(sbScale, sbScale);
+    drawSalesBunny(0, 0, time);
+    ctx.restore();
+
+    // Counter / desk in front of bunny
+    const deskW = width * 0.22;
+    const deskH = 35;
+    const deskX = sbX - deskW / 2;
+    const deskY = floorY - 5;
+    const deskG = ctx.createLinearGradient(0, deskY, 0, deskY + deskH);
+    deskG.addColorStop(0, '#7a3818');
+    deskG.addColorStop(0.5, '#a05830');
+    deskG.addColorStop(1, '#4a1a08');
+    ctx.fillStyle = deskG;
+    ctx.fillRect(deskX, deskY, deskW, deskH);
+    const dTopG = ctx.createLinearGradient(0, deskY - 4, 0, deskY + 4);
+    dTopG.addColorStop(0, '#fff');
+    dTopG.addColorStop(1, '#c8c0b0');
+    ctx.fillStyle = dTopG;
+    ctx.fillRect(deskX - 4, deskY - 4, deskW + 8, 6);
+
+    // Cash register on desk
+    const regX = sbX - 14, regY = deskY - 20;
+    ctx.fillStyle = '#d4af37';
+    ctx.fillRect(regX, regY, 28, 20);
+    ctx.fillStyle = '#2a1810';
+    ctx.fillRect(regX + 2, regY + 2, 24, 9);
+    ctx.fillStyle = '#8bc34a';
+    ctx.fillRect(regX + 4, regY + 4, 20, 5);
+
+    // Speech bubble above bunny
+    ctx.save();
+    const bubbleW = 110, bubbleH = 38;
+    const bubbleX = sbX - bubbleW / 2, bubbleY = sbY - 95 * sbScale;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
     ctx.strokeStyle = '#c8a050';
     ctx.lineWidth = 2;
-    const bubbleX = sbX - 85, bubbleY = sbY - 55, bubbleW = 75, bubbleH = 30;
     ctx.beginPath();
-    ctx.moveTo(bubbleX + 5, bubbleY);
-    ctx.lineTo(bubbleX + bubbleW - 5, bubbleY);
-    ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY, bubbleX + bubbleW, bubbleY + 5);
-    ctx.lineTo(bubbleX + bubbleW, bubbleY + bubbleH - 5);
-    ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY + bubbleH, bubbleX + bubbleW - 5, bubbleY + bubbleH);
-    ctx.lineTo(bubbleX + bubbleW * 0.75, bubbleY + bubbleH);
-    ctx.lineTo(bubbleX + bubbleW * 0.7, bubbleY + bubbleH + 6);
-    ctx.lineTo(bubbleX + bubbleW * 0.65, bubbleY + bubbleH);
-    ctx.lineTo(bubbleX + 5, bubbleY + bubbleH);
-    ctx.quadraticCurveTo(bubbleX, bubbleY + bubbleH, bubbleX, bubbleY + bubbleH - 5);
-    ctx.lineTo(bubbleX, bubbleY + 5);
-    ctx.quadraticCurveTo(bubbleX, bubbleY, bubbleX + 5, bubbleY);
+    ctx.moveTo(bubbleX + 8, bubbleY);
+    ctx.lineTo(bubbleX + bubbleW - 8, bubbleY);
+    ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY, bubbleX + bubbleW, bubbleY + 8);
+    ctx.lineTo(bubbleX + bubbleW, bubbleY + bubbleH - 8);
+    ctx.quadraticCurveTo(bubbleX + bubbleW, bubbleY + bubbleH, bubbleX + bubbleW - 8, bubbleY + bubbleH);
+    ctx.lineTo(bubbleX + bubbleW * 0.55, bubbleY + bubbleH);
+    ctx.lineTo(bubbleX + bubbleW * 0.5, bubbleY + bubbleH + 8);
+    ctx.lineTo(bubbleX + bubbleW * 0.45, bubbleY + bubbleH);
+    ctx.lineTo(bubbleX + 8, bubbleY + bubbleH);
+    ctx.quadraticCurveTo(bubbleX, bubbleY + bubbleH, bubbleX, bubbleY + bubbleH - 8);
+    ctx.lineTo(bubbleX, bubbleY + 8);
+    ctx.quadraticCurveTo(bubbleX, bubbleY, bubbleX + 8, bubbleY);
     ctx.fill();
     ctx.stroke();
     ctx.fillStyle = '#4a3020';
-    ctx.font = 'italic 10px Georgia';
+    ctx.font = 'italic 13px Georgia';
     ctx.textAlign = 'center';
-    ctx.fillText("Bonjour! 🐰", bubbleX + bubbleW / 2, bubbleY + 13);
-    ctx.fillText("Try me!", bubbleX + bubbleW / 2, bubbleY + 25);
+    ctx.fillText("Bonjour! Welcome to", sbX, bubbleY + 16);
+    ctx.font = 'bold italic 13px Georgia';
+    ctx.fillText("Bunny Couture! 🐰", sbX, bubbleY + 32);
     ctx.textAlign = 'left';
     ctx.restore();
 
-    // === BRAND SIGN at top (behind chandelier is the wall logo) ===
+    // === BRAND SIGN at top center ===
     ctx.save();
-    ctx.font = 'bold italic 20px Georgia';
+    const signSize = Math.max(24, width * 0.035);
+    ctx.font = `bold italic ${signSize}px Georgia`;
     ctx.textAlign = 'center';
     ctx.fillStyle = '#8a6010';
-    ctx.fillText('Bunny Couture', width / 2, height * 0.05);
+    ctx.fillText('Bunny Couture', width / 2, height * 0.06);
     ctx.fillStyle = '#c8a050';
-    ctx.fillText('Bunny Couture', width / 2 - 1, height * 0.05 - 1);
-    ctx.font = 'italic 9px Georgia';
+    ctx.fillText('Bunny Couture', width / 2 - 1, height * 0.06 - 1);
+    ctx.font = `italic ${Math.max(10, signSize * 0.45)}px Georgia`;
     ctx.fillStyle = '#8a6010';
-    ctx.fillText('— maison de haute couture —', width / 2, height * 0.07);
+    ctx.fillText('— maison de haute couture —', width / 2, height * 0.06 + signSize * 0.8);
     ctx.textAlign = 'left';
     ctx.restore();
 
@@ -5588,11 +5874,11 @@ function drawShopItemPreview(item, cx, cy) {
     ctx.save();
     // Map item IDs to their slot + item props
     const fakeWearables = {};
-    const neckItems = { carrot_treat: '#e53935', scarf_red: '#c4302a', scarf_blue: '#2a6ab8', night_light: '#e53935', hopmes_scarf: '#ff7518', chanel_pearls: '#f8f4e8' };
-    const backItems = { soft_blanket: '#9c5bc5', louis_bunitton: '#5a3a20', hoppidas_jacket: '#1a1a1a' };
+    const neckItems = { carrot_treat: '#e53935', scarf_red: '#c4302a', scarf_blue: '#2a6ab8', night_light: '#e53935', hopmes_scarf: '#ff7518', chanel_pearls: '#f8f4e8', pierre_cardin_tie: '#8b0000' };
+    const backItems = { soft_blanket: '#9c5bc5', louis_bunitton: '#5a3a20', hoppidas_jacket: '#1a1a1a', balenciaga_hoodie: '#1a1a1a', boss_suit: '#1c2331' };
     const headItems = { bow_pink: '#e91e63', hat_top: '#1a1a1a', decorative_plant: '#66bb6a', hike_cap: '#ffffff', bunnci_beanie: '#006633' };
-    const eyesItems = { glasses: '#1a1a1a', dior_shades: '#d4af37' };
-    const heldItems = { toy_ball: '#ff5722', cloud_kicks: '#f0f0f0' };
+    const eyesItems = { glasses: '#1a1a1a', dior_shades: '#d4af37', calvin_klein_shades: '#2c2c2c' };
+    const heldItems = { toy_ball: '#ff5722', cloud_kicks: '#f0f0f0', balenciaga_sneakers: '#e0e0e0', boss_watch: '#c0c0c0' };
 
     if (neckItems[item.id]) {
         fakeWearables.neck = { itemId: item.id, color: neckItems[item.id] };
@@ -5631,72 +5917,95 @@ function drawShopItemPreview(item, cx, cy) {
 }
 
 function drawShopBasketUI(width, height) {
-    const bxX = width - 150, bxY = 14;
-    // Basket panel
-    const bxG = ctx.createLinearGradient(bxX, bxY, bxX, bxY + 80);
+    const panelW = 170, panelH = 100;
+    const bxX = width - panelW - 16, bxY = 16;
+    ctx.save();
+    // Panel background
+    const bxG = ctx.createLinearGradient(bxX, bxY, bxX, bxY + panelH);
     bxG.addColorStop(0, 'rgba(40, 20, 10, 0.95)');
     bxG.addColorStop(1, 'rgba(20, 10, 5, 0.95)');
     ctx.fillStyle = bxG;
-    ctx.fillRect(bxX, bxY, 136, 80);
+    ctx.fillRect(bxX, bxY, panelW, panelH);
     ctx.strokeStyle = '#c8a050';
     ctx.lineWidth = 2;
-    ctx.strokeRect(bxX, bxY, 136, 80);
+    ctx.strokeRect(bxX, bxY, panelW, panelH);
     // Title
     ctx.fillStyle = '#c8a050';
-    ctx.font = 'bold italic 13px Georgia';
+    ctx.font = 'bold italic 15px Georgia';
     ctx.textAlign = 'center';
-    ctx.fillText('Your Basket', bxX + 68, bxY + 18);
+    const cx = bxX + panelW / 2;
+    ctx.fillText('Your Basket', cx, bxY + 22);
     // Items count + total
     const totalPrice = shopBasket.reduce((sum, id) => {
         const item = shopState.items.find(i => i.id === id);
         return sum + (item ? item.price : 0);
     }, 0);
     ctx.fillStyle = '#fff';
-    ctx.font = '11px Georgia';
-    ctx.fillText(`${shopBasket.length} item(s)`, bxX + 68, bxY + 35);
+    ctx.font = '13px Georgia';
+    ctx.fillText(`${shopBasket.length} item(s)`, cx, bxY + 42);
     ctx.fillStyle = '#ffd23a';
-    ctx.font = 'bold 12px Georgia';
-    ctx.fillText(`Total: ${totalPrice} 🥕`, bxX + 68, bxY + 50);
+    ctx.font = 'bold 14px Georgia';
+    ctx.fillText(`Total: ${totalPrice} 🥕`, cx, bxY + 60);
     // Checkout button
     if (shopBasket.length > 0) {
-        const btnG = ctx.createLinearGradient(0, bxY + 58, 0, bxY + 76);
+        const btnW = panelW - 20, btnH = 24;
+        const btnX = bxX + 10, btnY = bxY + 70;
+        const btnG = ctx.createLinearGradient(0, btnY, 0, btnY + btnH);
         btnG.addColorStop(0, '#f0c84a');
         btnG.addColorStop(1, '#8a6010');
         ctx.fillStyle = btnG;
-        ctx.fillRect(bxX + 8, bxY + 58, 120, 18);
+        ctx.fillRect(btnX, btnY, btnW, btnH);
         ctx.strokeStyle = '#fff8c8';
         ctx.lineWidth = 1;
-        ctx.strokeRect(bxX + 8, bxY + 58, 120, 18);
+        ctx.strokeRect(btnX, btnY, btnW, btnH);
         ctx.fillStyle = '#2a1810';
-        ctx.font = 'bold 11px Georgia';
-        ctx.fillText('✨ CHECKOUT ✨', bxX + 68, bxY + 71);
-        shopItemClickZones.push({ x: bxX + 8, y: bxY + 58, w: 120, h: 18, action: 'checkout' });
+        ctx.font = 'bold 13px Georgia';
+        ctx.fillText('CHECKOUT', cx, btnY + 17);
+        shopItemClickZones.push({ x: btnX, y: btnY, w: btnW, h: btnH, action: 'checkout' });
     } else {
         ctx.fillStyle = 'rgba(200, 160, 80, 0.5)';
-        ctx.font = 'italic 10px Georgia';
-        ctx.fillText('(basket empty)', bxX + 68, bxY + 70);
+        ctx.font = 'italic 12px Georgia';
+        ctx.fillText('(basket empty)', cx, bxY + 82);
     }
     ctx.textAlign = 'left';
+    ctx.restore();
 }
 
 // Handle clicks on the shop canvas
 function handleShopClick(x, y) {
+    // Check action zones first (close, checkout, pagination) — they take priority
     for (const zone of shopItemClickZones) {
-        if (x >= zone.x && x <= zone.x + zone.w && y >= zone.y && y <= zone.y + zone.h) {
+        if (zone.action && x >= zone.x && x <= zone.x + zone.w && y >= zone.y && y <= zone.y + zone.h) {
             if (zone.action === 'close') {
                 toggleShop();
                 return true;
             }
             if (zone.action === 'checkout') {
-                // Buy all items in basket sequentially
                 shopBasket.forEach(itemId => buyItem(itemId));
                 shopBasket = [];
                 return true;
             }
+            if (zone.action === 'prev_page') {
+                shopPage = Math.max(0, shopPage - 1);
+                backgroundNeedsRedraw = true;
+                dirtyBackground = true;
+                return true;
+            }
+            if (zone.action === 'next_page') {
+                shopPage++;
+                backgroundNeedsRedraw = true;
+                dirtyBackground = true;
+                return true;
+            }
+        }
+    }
+    // Then check item zones
+    for (const zone of shopItemClickZones) {
+        if (x >= zone.x && x <= zone.x + zone.w && y >= zone.y && y <= zone.y + zone.h) {
             if (zone.itemId) {
                 const idx = shopBasket.indexOf(zone.itemId);
                 if (idx >= 0) {
-                    shopBasket.splice(idx, 1); // toggle off
+                    shopBasket.splice(idx, 1);
                 } else {
                     shopBasket.push(zone.itemId);
                 }
@@ -6461,40 +6770,79 @@ function drawCaveToContext(context, width, height) {
         context.stroke();
     }
 
-    // === LANTERN — detailed metal frame with flickering flame ===
-    const lx = cave.x + 32, ly = cave.y + cave.height * 0.42;
-    // Lantern big glow (flickers)
+    // === BONFIRE — warm cozy campfire ===
+    const bfx = cave.x + cave.width * 0.35, bfy = cy - 4;
     const flicker = 0.85 + Math.sin(time * 8) * 0.1 + Math.sin(time * 13) * 0.05;
-    const bigGlow = context.createRadialGradient(lx, ly, 2, lx, ly, 45);
-    bigGlow.addColorStop(0, `rgba(255, 200, 80, ${0.6 * flicker})`);
-    bigGlow.addColorStop(0.4, `rgba(255, 150, 40, ${0.25 * flicker})`);
-    bigGlow.addColorStop(1, 'rgba(255, 150, 40, 0)');
+
+    // Big warm glow
+    const bigGlow = context.createRadialGradient(bfx, bfy - 15, 3, bfx, bfy - 10, 70);
+    bigGlow.addColorStop(0, `rgba(255, 180, 60, ${0.55 * flicker})`);
+    bigGlow.addColorStop(0.4, `rgba(255, 120, 30, ${0.2 * flicker})`);
+    bigGlow.addColorStop(1, 'rgba(255, 100, 20, 0)');
     context.fillStyle = bigGlow;
-    context.fillRect(lx - 45, ly - 45, 90, 90);
-    // Lantern body — metal frame
-    context.fillStyle = '#3a2818';
-    context.fillRect(lx - 6, ly - 2, 12, 16);
-    context.fillRect(lx - 8, ly - 4, 16, 3);
-    context.fillRect(lx - 8, ly + 13, 16, 3);
-    // Hanging chain
-    context.strokeStyle = '#4a3828';
-    context.lineWidth = 1;
+    context.fillRect(bfx - 70, bfy - 80, 140, 100);
+
+    // Logs (crossed sticks)
+    context.strokeStyle = '#5a3a18';
+    context.lineWidth = 4;
+    context.lineCap = 'round';
     context.beginPath();
-    context.moveTo(lx, ly - 4);
-    context.lineTo(lx, ly - 16);
+    context.moveTo(bfx - 18, bfy + 6);
+    context.lineTo(bfx + 18, bfy - 2);
+    context.moveTo(bfx + 16, bfy + 6);
+    context.lineTo(bfx - 16, bfy - 2);
     context.stroke();
-    // Glass panel with warm glow inside
-    const glassG = context.createRadialGradient(lx, ly + 6, 1, lx, ly + 6, 8);
-    glassG.addColorStop(0, `rgba(255, 240, 150, ${flicker})`);
-    glassG.addColorStop(0.6, `rgba(255, 180, 60, ${flicker * 0.8})`);
-    glassG.addColorStop(1, 'rgba(180, 60, 10, 0.6)');
-    context.fillStyle = glassG;
-    context.fillRect(lx - 5, ly, 10, 13);
-    // Flame flicker
-    context.fillStyle = `rgba(255, 210, 100, ${flicker})`;
+    // Log ends
+    context.fillStyle = '#4a2a10';
     context.beginPath();
-    context.ellipse(lx, ly + 8, 1.5, 3, 0, 0, Math.PI * 2);
+    context.arc(bfx - 18, bfy + 6, 3, 0, Math.PI * 2);
+    context.arc(bfx + 18, bfy - 2, 3, 0, Math.PI * 2);
+    context.arc(bfx + 16, bfy + 6, 3, 0, Math.PI * 2);
+    context.arc(bfx - 16, bfy - 2, 3, 0, Math.PI * 2);
     context.fill();
+
+    // Embers at base
+    context.fillStyle = `rgba(255, 100, 20, ${0.7 * flicker})`;
+    context.beginPath();
+    context.ellipse(bfx, bfy, 12, 5, 0, 0, Math.PI * 2);
+    context.fill();
+
+    // Fire flames (multiple layers)
+    const flameH = 22 + Math.sin(time * 6) * 4;
+    // Outer flame (orange)
+    context.fillStyle = `rgba(255, 130, 20, ${0.75 * flicker})`;
+    context.beginPath();
+    context.moveTo(bfx - 10, bfy);
+    context.quadraticCurveTo(bfx - 14, bfy - flameH * 0.6, bfx - 3, bfy - flameH);
+    context.quadraticCurveTo(bfx, bfy - flameH * 0.7, bfx + 3, bfy - flameH * 0.9);
+    context.quadraticCurveTo(bfx + 14, bfy - flameH * 0.5, bfx + 10, bfy);
+    context.fill();
+    // Inner flame (yellow)
+    context.fillStyle = `rgba(255, 220, 80, ${0.85 * flicker})`;
+    context.beginPath();
+    context.moveTo(bfx - 6, bfy);
+    context.quadraticCurveTo(bfx - 8, bfy - flameH * 0.5, bfx - 1, bfy - flameH * 0.75);
+    context.quadraticCurveTo(bfx + 2, bfy - flameH * 0.5, bfx + 1, bfy - flameH * 0.65);
+    context.quadraticCurveTo(bfx + 8, bfy - flameH * 0.4, bfx + 6, bfy);
+    context.fill();
+    // Core (white-hot)
+    context.fillStyle = `rgba(255, 255, 200, ${0.7 * flicker})`;
+    context.beginPath();
+    context.ellipse(bfx, bfy - 6, 4, 8, 0, 0, Math.PI * 2);
+    context.fill();
+
+    // Sparks rising
+    for (let s = 0; s < 5; s++) {
+        const sparkT = (time * 2 + s * 1.3) % 3;
+        const sx = bfx + Math.sin(time * 3 + s * 2) * 8;
+        const sy = bfy - 20 - sparkT * 18;
+        const sa = Math.max(0, 1 - sparkT / 2.5);
+        context.fillStyle = `rgba(255, 200, 60, ${sa * 0.8})`;
+        context.beginPath();
+        context.arc(sx, sy, 1.2, 0, Math.PI * 2);
+        context.fill();
+    }
+    context.lineCap = 'butt';
 
     // === MUSHROOMS — cluster of 3 varying sizes ===
     const mushPositions = [
@@ -6666,12 +7014,48 @@ function drawParentBunnies() {
         parentBunnyPositions.parent_white.initialized = true;
     }
 
+    // Pet cuddle — parents move toward baby temporarily
+    if (petCuddleState.active && Date.now() < petCuddleState.endTime && petCuddleState.babyId) {
+        const babyPos = bunnyPositions[petCuddleState.babyId];
+        if (babyPos) {
+            parentBunnyPositions.parent_black.targetX = babyPos.x - 55;
+            parentBunnyPositions.parent_black.targetY = babyPos.y;
+            parentBunnyPositions.parent_white.targetX = babyPos.x + 55;
+            parentBunnyPositions.parent_white.targetY = babyPos.y;
+        }
+    } else if (petCuddleState.active && Date.now() >= petCuddleState.endTime) {
+        petCuddleState.active = false;
+        parentBunnyPositions.parent_black.targetX = width * 0.2;
+        parentBunnyPositions.parent_black.targetY = height * 0.6;
+        parentBunnyPositions.parent_white.targetX = width * 0.8;
+        parentBunnyPositions.parent_white.targetY = height * 0.6;
+    }
+
     // Smooth lerp toward target positions
-    const lerpFactor = 0.15;
+    const lerpFactor = 0.08;
     parentBunnyPositions.parent_black.x = lerp(parentBunnyPositions.parent_black.x, parentBunnyPositions.parent_black.targetX, lerpFactor);
     parentBunnyPositions.parent_black.y = lerp(parentBunnyPositions.parent_black.y, parentBunnyPositions.parent_black.targetY, lerpFactor);
     parentBunnyPositions.parent_white.x = lerp(parentBunnyPositions.parent_white.x, parentBunnyPositions.parent_white.targetX, lerpFactor);
     parentBunnyPositions.parent_white.y = lerp(parentBunnyPositions.parent_white.y, parentBunnyPositions.parent_white.targetY, lerpFactor);
+
+    // Draw hearts during cuddle
+    if (petCuddleState.active) {
+        const time = Date.now() * 0.001;
+        const babyPos = bunnyPositions[petCuddleState.babyId];
+        if (babyPos) {
+            for (let h = 0; h < 4; h++) {
+                const hx = babyPos.x + Math.sin(time * 0.8 + h * 1.5) * 30;
+                const hy = babyPos.y - 40 - h * 12 + Math.sin(time + h) * 6;
+                const hSize = 5 + Math.sin(time * 1.5 + h) * 2;
+                ctx.fillStyle = `rgba(255, 80, 130, ${0.5 + Math.sin(time + h) * 0.2})`;
+                ctx.beginPath();
+                ctx.moveTo(hx, hy);
+                ctx.bezierCurveTo(hx - hSize, hy - hSize, hx - hSize * 2, hy + hSize * 0.3, hx, hy + hSize * 1.5);
+                ctx.bezierCurveTo(hx + hSize * 2, hy + hSize * 0.3, hx + hSize, hy - hSize, hx, hy);
+                ctx.fill();
+            }
+        }
+    }
 
     // Black parent bunny
     const blackX = parentBunnyPositions.parent_black.x;
@@ -6689,7 +7073,11 @@ function drawParentBunnies() {
 
 // ===== GRADIENT SHADING HELPERS =====
 function shiftColor(hex, amount) {
-    if (!hex || hex[0] !== '#' || hex.length < 7) return hex;
+    if (!hex || hex[0] !== '#') return hex || '#808080';
+    if (hex.length === 4) {
+        hex = '#' + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
+    }
+    if (hex.length < 7) return hex;
     const r = Math.max(0, Math.min(255, parseInt(hex.slice(1, 3), 16) + amount));
     const g = Math.max(0, Math.min(255, parseInt(hex.slice(3, 5), 16) + amount));
     const b = Math.max(0, Math.min(255, parseInt(hex.slice(5, 7), 16) + amount));
@@ -6734,7 +7122,198 @@ function headTilt(phase, time) {
     return Math.sin(time * 0.6 + phase) * 0.14;
 }
 
+function getHopState(bunnyId) {
+    const wander = bunnyWanderState[bunnyId];
+    if (!wander || wander.hopPhase === 0) return { hopping: false, t: 0, arc: 0, squash: 1, stretch: 1, facing: wander?.facing ?? 1 };
+    const elapsed = Date.now() - wander.hopStartTime;
+    const t = Math.min(1, elapsed / wander.hopDuration);
+    const arc = Math.sin(t * Math.PI) * 20;
+    const squash = t < 0.15 ? 1 - t * 1.5 : (t > 0.85 ? 1 - (1 - t) * 1.5 : 1);
+    const stretch = t < 0.15 ? 1 + t * 0.8 : (t > 0.85 ? 1 + (1 - t) * 0.8 : 1);
+    return { hopping: true, t, arc, squash, stretch, facing: wander.facing ?? 1 };
+}
+
+function drawFurEdge(cx, cy, rx, ry, color, count) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(0.7, rx * 0.04);
+    ctx.lineCap = 'round';
+    const seed = (cx * 7 + cy * 13) & 0xffff;
+    ctx.beginPath();
+    for (let i = 0; i < count; i++) {
+        const angle = (i / count) * Math.PI * 2;
+        const px = cx + Math.cos(angle) * rx;
+        const py = cy + Math.sin(angle) * ry;
+        const furLen = (rx + ry) * 0.04 + ((seed * (i + 1) * 31) & 0xff) / 255 * (rx + ry) * 0.06;
+        const furAngle = angle + (((seed * (i + 7) * 17) & 0xff) / 255 - 0.5) * 0.6;
+        ctx.moveTo(px, py);
+        ctx.lineTo(px + Math.cos(furAngle) * furLen, py + Math.sin(furAngle) * furLen);
+    }
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawBunnyLegs(size, bunnyColor, hopState) {
+    const legColor = shiftColor(bunnyColor, -15);
+    const pawColor = shiftColor(bunnyColor, 25);
+    const innerPawColor = shiftColor(bunnyColor, 45);
+    const furStroke = shiftColor(bunnyColor, -40) + '60';
+
+    // Chubby hind legs — large, visible at bottom-sides, sitting bunny style
+    const hindLegW = size * 0.48;
+    const hindLegH = size * 0.38;
+    const hindY = size * 0.42;
+    const hindX = size * 0.38;
+    let hindAngle = 0;
+    if (hopState.hopping) {
+        hindAngle = hopState.t < 0.5 ? -0.4 * Math.sin(hopState.t * Math.PI) : 0.25 * Math.sin(hopState.t * Math.PI);
+    }
+
+    // Left hind leg
+    ctx.save();
+    ctx.translate(-hindX, hindY);
+    ctx.rotate(hindAngle);
+    ctx.fillStyle = legColor;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, hindLegW, hindLegH, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+    drawFurEdge(0, 0, hindLegW, hindLegH, furStroke, 18);
+    // Big hind paw
+    ctx.fillStyle = pawColor;
+    ctx.beginPath();
+    ctx.ellipse(-hindLegW * 0.35, hindLegH * 0.75, hindLegW * 0.55, hindLegH * 0.4, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = innerPawColor;
+    ctx.beginPath();
+    ctx.ellipse(-hindLegW * 0.35, hindLegH * 0.7, hindLegW * 0.3, hindLegH * 0.2, -0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Right hind leg
+    ctx.save();
+    ctx.translate(hindX, hindY);
+    ctx.rotate(-hindAngle);
+    ctx.fillStyle = legColor;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, hindLegW, hindLegH, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    drawFurEdge(0, 0, hindLegW, hindLegH, furStroke, 18);
+    ctx.fillStyle = pawColor;
+    ctx.beginPath();
+    ctx.ellipse(hindLegW * 0.35, hindLegH * 0.75, hindLegW * 0.55, hindLegH * 0.4, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = innerPawColor;
+    ctx.beginPath();
+    ctx.ellipse(hindLegW * 0.35, hindLegH * 0.7, hindLegW * 0.3, hindLegH * 0.2, 0.2, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    // Front paws — held together at chest
+    const frontPawW = size * 0.2;
+    const frontPawH = size * 0.16;
+    const frontY = size * 0.55;
+    const frontX = size * 0.12;
+    let frontBob = 0;
+    if (hopState.hopping) {
+        frontBob = -Math.sin(hopState.t * Math.PI) * size * 0.12;
+    }
+
+    ctx.fillStyle = pawColor;
+    ctx.beginPath();
+    ctx.ellipse(-frontX, frontY + frontBob, frontPawW, frontPawH, -0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(frontX, frontY + frontBob, frontPawW, frontPawH, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = innerPawColor;
+    ctx.beginPath();
+    ctx.ellipse(-frontX, frontY + frontBob + frontPawH * 0.15, frontPawW * 0.55, frontPawH * 0.5, -0.15, 0, Math.PI * 2);
+    ctx.ellipse(frontX, frontY + frontBob + frontPawH * 0.15, frontPawW * 0.55, frontPawH * 0.5, 0.15, 0, Math.PI * 2);
+    ctx.fill();
+}
+
+function drawFluffyTail(size, bunnyColor, wagDx) {
+    const tailX = -size * 0.75 + wagDx;
+    const tailY = size * 0.05;
+    const fluffR = size * 0.38;
+
+    const baseColor = shiftColor(bunnyColor, 15);
+    const lightColor = shiftColor(bunnyColor, 45);
+    const brightColor = shiftColor(bunnyColor, 65);
+
+    // Big fluffy cottontail — many overlapping puffs
+    ctx.fillStyle = baseColor;
+    ctx.beginPath();
+    ctx.arc(tailX, tailY, fluffR, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Surrounding puffs for extra fluff
+    ctx.fillStyle = lightColor;
+    ctx.beginPath();
+    ctx.arc(tailX + fluffR * 0.4, tailY - fluffR * 0.35, fluffR * 0.65, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(tailX - fluffR * 0.3, tailY + fluffR * 0.4, fluffR * 0.6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(tailX + fluffR * 0.15, tailY + fluffR * 0.45, fluffR * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(tailX - fluffR * 0.35, tailY - fluffR * 0.25, fluffR * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Bright center puff
+    ctx.fillStyle = brightColor;
+    ctx.beginPath();
+    ctx.arc(tailX + fluffR * 0.05, tailY - fluffR * 0.1, fluffR * 0.45, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Shine highlight
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    ctx.beginPath();
+    ctx.arc(tailX + fluffR * 0.2, tailY - fluffR * 0.35, fluffR * 0.28, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Fur texture on tail
+    drawFurEdge(tailX, tailY, fluffR * 1.05, fluffR * 1.05, shiftColor(bunnyColor, -35) + '40', 24);
+}
+
 function drawParentBunny(x, y, color, type) {
+    const sprite = type === 'black' ? bunnySprites.parentBlack : bunnySprites.parentWhite;
+    if (sprite) {
+        const size = 80;
+        const time = Date.now() * 0.003;
+        const floatPhase = type === 'black' ? 0 : Math.PI;
+        const bounceY = y + Math.sin(time * 1.5 + floatPhase) * 5;
+
+        // Shadow
+        ctx.save();
+        ctx.globalAlpha = 0.18;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(x, y + size * 0.6, size * 0.45, size * 0.12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Draw sprite (anchored center-bottom)
+        ctx.drawImage(sprite, x - size / 2, bounceY - size * 0.65, size, size);
+
+        // Wearables overlay
+        const parentWearableKey = type === 'black' ? 'parent_black' : 'parent_white';
+        if (gameState && gameState.parentWearables && gameState.parentWearables[parentWearableKey]) {
+            ctx.save();
+            ctx.translate(x, bounceY - size * 0.15);
+            drawBunnyWearables(0, 0, size * 0.45, gameState.parentWearables[parentWearableKey]);
+            ctx.restore();
+        }
+
+        // Player names
+        return;
+    }
+    return drawParentBunnyProcedural(x, y, color, type);
+}
+
+function drawParentBunnyProcedural(x, y, color, type) {
     const size = 60; // bigger figures (was 40)
     const time = Date.now() * 0.003;
 
@@ -6762,69 +7341,82 @@ function drawParentBunny(x, y, color, type) {
     const blink = isBlinking(phase, time);
     const wagDx = tailWag(phase, time) * size;
     const tilt = headTilt(phase, time);
+    const noHop = { hopping: false, t: 0, arc: 0, squash: 1, stretch: 1, facing: 1 };
 
     // Apply gentle head tilt to the whole bunny (Cromimi-style)
     ctx.rotate(tilt * 0.4);
 
-    // Body (with subtle breathing scale + radial gradient shading)
+    // Fluffy tail (behind body)
+    drawFluffyTail(size, color, wagDx);
+
+    // Legs (behind body)
+    drawBunnyLegs(size, color, noHop);
+
+    const furStroke = shiftColor(color, -40) + '50';
+    const innerEarColor = type === 'white' ? '#ffb3d9' : '#ff69b4';
+
+    // Body (with sketch-like shading)
     ctx.save();
     ctx.scale(breath, breath);
-    ctx.fillStyle = bodyGradient(color, size, size * 0.8);
+    ctx.fillStyle = bodyGradient(color, size, size * 0.85);
     ctx.beginPath();
-    ctx.ellipse(0, 0, size, size * 0.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, size, size * 0.85, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    if (color === '#ffffff') {
-        ctx.strokeStyle = '#ccc';
-        ctx.lineWidth = 1.5;
-        ctx.stroke();
-    }
-
-    // Ears (with idle twitch rotation + gradient shading)
-    ctx.fillStyle = bodyGradient(color, size * 0.3, size * 0.6);
+    // Soft belly/chest
+    ctx.fillStyle = shiftColor(color, 40) + '55';
     ctx.beginPath();
-    ctx.ellipse(-size * 0.3, -size * 0.8, size * 0.3, size * 0.6, -0.3 - twitch, 0, Math.PI * 2);
-    ctx.ellipse(size * 0.3, -size * 0.8, size * 0.3, size * 0.6, 0.3 + twitch, 0, Math.PI * 2);
+    ctx.ellipse(0, size * 0.05, size * 0.6, size * 0.55, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    // Inner ears
-    ctx.fillStyle = type === 'white' ? '#ffb3d9' : '#ff69b4';
+    // Fur edge
+    drawFurEdge(0, 0, size, size * 0.85, furStroke, 45);
+
+    // Soft outline
+    ctx.strokeStyle = shiftColor(color, -50) + '30';
+    ctx.lineWidth = Math.max(0.8, size * 0.02);
     ctx.beginPath();
-    ctx.ellipse(-size * 0.3, -size * 0.7, size * 0.15, size * 0.3, -0.3 - twitch, 0, Math.PI * 2);
-    ctx.ellipse(size * 0.3, -size * 0.7, size * 0.15, size * 0.3, 0.3 + twitch, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, size, size * 0.85, 0, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Ears — tall and upright
+    const earW = size * 0.28;
+    const earH = size * 0.7;
+    const earBaseY = -size * 0.7;
+
+    ctx.save();
+    ctx.translate(-size * 0.25, earBaseY);
+    ctx.rotate(-0.15 - twitch);
+    ctx.fillStyle = bodyGradient(color, earW, earH);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, earW, earH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    drawFurEdge(0, 0, earW, earH, furStroke, 16);
+    ctx.fillStyle = innerEarColor;
+    ctx.beginPath();
+    ctx.ellipse(0, earH * 0.05, earW * 0.55, earH * 0.65, 0, 0, Math.PI * 2);
     ctx.fill();
     ctx.restore();
 
-    // Face (blinks on idle cycle, vibrant per-parent eye color)
-    const parentEyeColor = type === 'black' ? EYE_COLORS[0] : EYE_COLORS[3]; // blue / pink
-    drawBunnyFace(0, -size * 0.2, size * 0.8, false, blink, 'content', parentEyeColor);
-
-    // Blush for white bunny
-    if (type === 'white') {
-        ctx.fillStyle = 'rgba(255, 182, 193, 0.5)';
-        ctx.beginPath();
-        ctx.arc(-size * 0.35, size * 0.05, size * 0.12, 0, Math.PI * 2);
-        ctx.arc(size * 0.35, size * 0.05, size * 0.12, 0, Math.PI * 2);
-        ctx.fill();
-    }
-
-    // Tail (with subtle wag + shading)
-    const tailG = ctx.createRadialGradient(
-        -size * 0.85 + wagDx, size * 0.22, 0,
-        -size * 0.8 + wagDx, size * 0.3, size * 0.3
-    );
-    tailG.addColorStop(0, shiftColor(color, 40));
-    tailG.addColorStop(1, shiftColor(color, -25));
-    ctx.fillStyle = tailG;
+    ctx.save();
+    ctx.translate(size * 0.25, earBaseY);
+    ctx.rotate(0.15 + twitch);
+    ctx.fillStyle = bodyGradient(color, earW, earH);
     ctx.beginPath();
-    ctx.arc(-size * 0.8 + wagDx, size * 0.3, size * 0.25, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, earW, earH, 0, 0, Math.PI * 2);
     ctx.fill();
+    drawFurEdge(0, 0, earW, earH, furStroke, 16);
+    ctx.fillStyle = innerEarColor;
+    ctx.beginPath();
+    ctx.ellipse(0, earH * 0.05, earW * 0.55, earH * 0.65, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
 
-    if (color === '#ffffff') {
-        ctx.strokeStyle = '#ccc';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-    }
+    ctx.restore();
+
+    // Face
+    const parentEyeColor = type === 'black' ? EYE_COLORS[0] : EYE_COLORS[3];
+    drawBunnyFace(0, -size * 0.2, size * 0.8, false, blink, 'content', parentEyeColor);
 
     // Draw parent wearables if any
     const parentWearableKey = type === 'black' ? 'parent_black' : 'parent_white';
@@ -6879,28 +7471,141 @@ function drawPlayerNames(blackX, blackY, whiteX, whiteY, width, height) {
 }
 
 function drawDraggableBabies() {
+    // Visitor mode — draw visited family's bunnies (read-only)
+    if (isVisitorMode && neighborhoodState.visitingFamily) {
+        const vf = neighborhoodState.visitingFamily;
+        const rect = canvas ? canvas.getBoundingClientRect() : { width: 800, height: 600 };
+        const cw = rect.width || 800;
+        const ch = rect.height || 600;
+        (vf.babies || []).forEach((baby, i) => {
+            if (baby.stage === 'egg') return;
+            const bx = baby.position?.x || cw * (0.3 + i * 0.2);
+            const by = baby.position?.y || ch * 0.6;
+            drawBunnyBaby(bx, by, baby);
+        });
+        // Visitor watermark
+        ctx.save();
+        ctx.globalAlpha = 0.15;
+        ctx.fillStyle = '#43a047';
+        ctx.font = 'bold 28px Georgia';
+        ctx.textAlign = 'center';
+        ctx.fillText('VISITING', cw / 2, ch * 0.15);
+        ctx.restore();
+        return;
+    }
+
     if (!gameState || !gameState.babies) return;
-    
+
+    // Check if all non-egg babies are sleeping — family cuddle mode
+    const nonEggBabies = gameState.babies.filter(b => b.stage !== 'egg');
+    const allSleeping = nonEggBabies.length >= 1 && nonEggBabies.every(b => b.sleeping);
+
+    if (allSleeping) {
+        drawFamilyCuddle(nonEggBabies);
+        // Still draw eggs separately
+        gameState.babies.filter(b => b.stage === 'egg').forEach(baby => {
+            const position = getBunnyPosition(baby.id);
+            drawDraggableBaby(position.x, position.y, baby, selectedBabyId === baby.id, bunnyAnimStates[baby.id]);
+        });
+        return;
+    }
+
     gameState.babies.forEach((baby, index) => {
         const position = getBunnyPosition(baby.id);
         const isSelected = selectedBabyId === baby.id;
         const animState = bunnyAnimStates[baby.id];
-        
         drawDraggableBaby(position.x, position.y, baby, isSelected, animState);
     });
 }
 
+function drawFamilyCuddle(babies) {
+    const rect = canvas ? canvas.getBoundingClientRect() : { width: 800, height: 600 };
+    const cx = (rect.width || 800) / 2;
+    const cy = (rect.height || 600) * 0.55;
+    const time = Date.now() * 0.001;
+    const breathScale = 1 + Math.sin(time * 0.8) * 0.02;
+
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(breathScale, breathScale);
+
+    // Soft nest/cloud underneath
+    ctx.fillStyle = 'rgba(255, 220, 240, 0.25)';
+    const totalCount = babies.length + 2;
+    const nestW = 60 + totalCount * 30;
+    const nestH = nestW * 0.4;
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        ctx.beginPath();
+        ctx.arc(Math.cos(angle) * nestW * 0.35, Math.sin(angle) * nestH * 0.3 + nestH * 0.15, nestW * 0.3, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    // Floating hearts
+    for (let i = 0; i < 5; i++) {
+        const hx = Math.sin(time * 0.5 + i * 1.8) * 50;
+        const hy = -70 - i * 12 + Math.sin(time * 0.7 + i) * 8;
+        const hSize = 6 + Math.sin(time + i) * 2;
+        ctx.fillStyle = `rgba(255, 100, 150, ${0.35 + Math.sin(time + i) * 0.2})`;
+        ctx.beginPath();
+        ctx.moveTo(hx, hy);
+        ctx.bezierCurveTo(hx - hSize, hy - hSize, hx - hSize * 2, hy + hSize * 0.3, hx, hy + hSize * 1.5);
+        ctx.bezierCurveTo(hx + hSize * 2, hy + hSize * 0.3, hx + hSize, hy - hSize, hx, hy);
+        ctx.fill();
+    }
+
+    // Position: parent black on left, babies in middle, parent white on right
+    const spacing = Math.min(50, 160 / totalCount);
+    const startX = -((totalCount - 1) * spacing) / 2;
+
+    // Left parent (black)
+    ctx.save();
+    ctx.translate(startX, 5);
+    ctx.rotate(0.15);
+    drawParentBunny(0, 0, '#2c2c2c', 'black');
+    ctx.restore();
+
+    // Baby bunnies in the middle
+    babies.forEach((baby, i) => {
+        const bx = startX + (i + 1) * spacing;
+        const by = Math.sin(i * 1.5) * 4 + 10;
+        const lean = (i % 2 === 0) ? 0.08 : -0.08;
+        ctx.save();
+        ctx.translate(bx, by);
+        ctx.rotate(lean);
+        drawBunnyBaby(0, 0, baby);
+        ctx.restore();
+    });
+
+    // Right parent (white)
+    ctx.save();
+    ctx.translate(startX + (totalCount - 1) * spacing, 5);
+    ctx.rotate(-0.15);
+    drawParentBunny(0, 0, '#ffffff', 'white');
+    ctx.restore();
+
+    ctx.restore();
+
+    // Zzz above
+    ctx.save();
+    ctx.fillStyle = '#7986cb';
+    ctx.font = '20px Comic Sans MS';
+    ctx.textAlign = 'center';
+    const zFloat = Math.sin(time * 1.2) * 5;
+    ctx.globalAlpha = 0.6 + Math.sin(time) * 0.3;
+    ctx.fillText('💤', cx + 60, cy - 80 + zFloat);
+    ctx.fillText('💤', cx - 50, cy - 95 + zFloat * 0.7);
+    ctx.fillText('💤', cx, cy - 110 + zFloat * 0.5);
+    ctx.globalAlpha = 1;
+    ctx.restore();
+}
+
 function drawDraggableBaby(x, y, baby, isSelected, animState) {
     const stage = baby.stage;
-    const time = Date.now() * 0.003;
+    const hopState = getHopState(baby.id);
 
-    // Floating / hovering animation — unique phase per bunny
-    const floatPhase = (baby.id ? baby.id.charCodeAt(baby.id.length - 1) : 0) * 1.3;
-    const floatY = Math.sin(time * 1.5 + floatPhase) * 6; // gentle 6px bob
-    const floatX = Math.cos(time * 0.8 + floatPhase) * 2; // very subtle horizontal sway
-
-    const drawX = x + floatX;
-    const drawY = y + floatY;
+    const drawX = x;
+    const drawY = y;
 
     ctx.save();
 
@@ -6910,20 +7615,20 @@ function drawDraggableBaby(x, y, baby, isSelected, animState) {
         ctx.translate(drawX, bounceY);
         ctx.scale(animState.scale, animState.scale);
 
-        // Draw shadow — size varies with float height
-        const shadowScale = 1 - floatY * 0.015; // shadow shrinks when bunny floats up
+        // Ground shadow — grows/shrinks with hop height
+        const hopLift = hopState.hopping ? hopState.arc : 0;
+        const shadowScale = 1 - hopLift * 0.01;
         const isDragging = animState.isBeingDragged;
-        drawBunnyShadow(0, 20 - floatY * 0.5, isDragging ? animState.scale : shadowScale);
+        drawBunnyShadow(0, 20 + hopLift * 0.3, isDragging ? animState.scale : shadowScale);
 
         ctx.translate(-drawX, -bounceY);
     } else {
-        // Even without animState, draw a ground shadow
-        const shadowScale = 1 - floatY * 0.015;
+        const hopLift = hopState.hopping ? hopState.arc : 0;
         ctx.save();
-        ctx.globalAlpha = 0.2 * shadowScale;
+        ctx.globalAlpha = 0.2 * (1 - hopLift * 0.01);
         ctx.fillStyle = '#000';
         ctx.beginPath();
-        ctx.ellipse(drawX, y + 25, 20, 7, 0, 0, Math.PI * 2);
+        ctx.ellipse(drawX, y + 25 + hopLift * 0.3, 20, 7, 0, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
     }
@@ -6958,9 +7663,9 @@ function drawBunnyShadow(x, y, scale) {
 }
 
 function drawSelectionIndicator(x, y, animState) {
+    ctx.save();
     const pulseFactor = 1 + 0.2 * Math.sin(Date.now() * 0.008);
     const radius = 60 * pulseFactor;
-    
     ctx.strokeStyle = dragState.isDragging ? '#ff6b6b' : '#ff69b4';
     ctx.lineWidth = 4;
     ctx.setLineDash([10, 5]);
@@ -6968,8 +7673,7 @@ function drawSelectionIndicator(x, y, animState) {
     ctx.beginPath();
     ctx.arc(x, y, radius, 0, Math.PI * 2);
     ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.globalAlpha = 1;
+    ctx.restore();
 }
 
 function drawDragIndicator(x, y) {
@@ -7045,7 +7749,72 @@ function drawEgg(x, y, baby) {
 function drawBunnyBaby(x, y, baby) {
     const stage = baby.stage;
     let size;
-    
+    switch (stage) {
+        case 'newborn': size = 42; break;
+        case 'toddler': size = 52; break;
+        case 'young': size = 62; break;
+        case 'grown': size = 72; break;
+        default: size = 42;
+    }
+    // Determine mood for sprite variant
+    let mood = 'normal';
+    if (baby.sleeping) mood = 'sleeping';
+    else {
+        const derived = typeof deriveMood === 'function' ? deriveMood(baby) : 'content';
+        if (derived === 'happy' || derived === 'content') mood = 'happy';
+        else if ((baby.happiness || 0) > 75) mood = 'happy';
+    }
+    const sprite = getBabySprite(baby.bunnySkin || 1, mood);
+    if (sprite) {
+        const time = Date.now() * 0.003;
+        const sleepOffset = baby.sleeping ? Math.sin(time * 2) * 2 : 0;
+        const bounceY = baby.sleeping ? y : y + Math.sin(time * 2 + x * 0.01) * 2;
+
+        // Shadow
+        ctx.save();
+        ctx.globalAlpha = 0.22;
+        ctx.fillStyle = '#000';
+        ctx.beginPath();
+        ctx.ellipse(x, y + size * 0.55, size * 0.38, size * 0.11, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        // Draw sprite
+        ctx.drawImage(sprite, x - size / 2, bounceY + sleepOffset - size * 0.55, size, size);
+
+        // Wearables overlay
+        if (baby.wearables) {
+            ctx.save();
+            ctx.translate(x, bounceY + sleepOffset - size * 0.1);
+            drawBunnyWearables(0, 0, size * 0.42, baby.wearables);
+            ctx.restore();
+        }
+
+        // Name tag
+        if (baby.name) {
+            ctx.fillStyle = '#ff69b4';
+            ctx.font = `bold ${Math.max(11, size * 0.25)}px Comic Sans MS`;
+            ctx.textAlign = 'center';
+            ctx.fillText(baby.name, x, y + size * 0.75);
+            ctx.textAlign = 'left';
+        }
+        // Sleep indicator
+        if (baby.sleeping) {
+            ctx.fillStyle = '#3f51b5';
+            ctx.font = '18px Comic Sans MS';
+            ctx.textAlign = 'center';
+            ctx.fillText('💤', x + size * 0.45, y - size * 0.35);
+            ctx.textAlign = 'left';
+        }
+        return;
+    }
+    return drawBunnyBabyProcedural(x, y, baby);
+}
+
+function drawBunnyBabyProcedural(x, y, baby) {
+    const stage = baby.stage;
+    let size;
+
     switch (stage) {
         case 'newborn': size = 32; break;
         case 'toddler': size = 40; break;
@@ -7053,15 +7822,16 @@ function drawBunnyBaby(x, y, baby) {
         case 'grown': size = 56; break;
         default: size = 32;
     }
-    
+
     const time = Date.now() * 0.003;
-    
+    const hopState = getHopState(baby.id);
+
     // Sleeping animation
     const sleepOffset = baby.sleeping ? Math.sin(time * 2) * 2 : 0;
     const bounceY = baby.sleeping ? y : y + Math.sin(time * 2 + x * 0.01) * 2;
-    
+
     ctx.save();
-    ctx.translate(x, bounceY + sleepOffset);
+    ctx.translate(x, bounceY + sleepOffset - (hopState.hopping ? hopState.arc : 0));
 
     // Determine color based on genetics
     const genetics = baby.genetics || { color: 'gray', parentInfluence: 'black' };
@@ -7087,22 +7857,47 @@ function drawBunnyBaby(x, y, baby) {
     const wagDx = baby.sleeping ? 0 : tailWag(phase, time) * size;
     const tilt = baby.sleeping ? 0 : headTilt(phase, time);
 
-    // Apply gentle head tilt to the whole baby (Cromimi-style)
-    ctx.rotate(tilt * 0.4);
+    // Apply gentle head tilt (reduced during hopping)
+    ctx.rotate(tilt * (hopState.hopping ? 0.1 : 0.4));
 
-    // Body (with breathing scale + gradient shading)
+    // Hop squash/stretch
+    if (hopState.hopping) {
+        ctx.scale(hopState.squash, hopState.stretch);
+    }
+
+    // Fluffy tail (draw behind body)
+    drawFluffyTail(size, bunnyColor, wagDx);
+
+    // Hind legs (draw behind body)
+    drawBunnyLegs(size, bunnyColor, hopState);
+
+    const furStroke = shiftColor(bunnyColor, -40) + '50';
+
+    // Body (with breathing scale + soft sketch shading)
     ctx.save();
     ctx.scale(breath, breath);
-    ctx.fillStyle = bodyGradient(bunnyColor, size, size * 0.8);
+
+    // Main body — round and chubby
+    ctx.fillStyle = bodyGradient(bunnyColor, size, size * 0.85);
     ctx.beginPath();
-    ctx.ellipse(0, 0, size, size * 0.8, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, size, size * 0.85, 0, 0, Math.PI * 2);
     ctx.fill();
 
-    if (bunnyColor === '#ffffff' || genetics.color === 'spotted') {
-        ctx.strokeStyle = '#ccc';
-        ctx.lineWidth = 1;
-        ctx.stroke();
-    }
+    // Soft belly/chest area — lighter patch
+    ctx.fillStyle = shiftColor(bunnyColor, 40) + '55';
+    ctx.beginPath();
+    ctx.ellipse(0, size * 0.05, size * 0.6, size * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Fur edge strokes around body
+    drawFurEdge(0, 0, size, size * 0.85, furStroke, 40);
+
+    // Soft pencil-like outline
+    ctx.strokeStyle = shiftColor(bunnyColor, -50) + '30';
+    ctx.lineWidth = Math.max(0.8, size * 0.02);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size, size * 0.85, 0, 0, Math.PI * 2);
+    ctx.stroke();
 
     // Spots for spotted bunnies
     if (genetics.color === 'spotted') {
@@ -7113,37 +7908,47 @@ function drawBunnyBaby(x, y, baby) {
         ctx.fill();
     }
 
-    // Ears (with idle twitch + gradient shading)
-    const earSize = size * 0.4;
-    ctx.fillStyle = bodyGradient(bunnyColor, earSize * 0.6, earSize);
-    ctx.beginPath();
-    ctx.ellipse(-size * 0.3, -size * 0.9, earSize * 0.6, earSize, -0.3 - twitch, 0, Math.PI * 2);
-    ctx.ellipse(size * 0.3, -size * 0.9, earSize * 0.6, earSize, 0.3 + twitch, 0, Math.PI * 2);
-    ctx.fill();
+    // Ears — tall and upright like the reference sketch
+    const earW = size * 0.28;
+    const earH = size * 0.7;
+    const earBaseY = -size * 0.7;
 
-    // Inner ears
+    // Left ear
+    ctx.save();
+    ctx.translate(-size * 0.25, earBaseY);
+    ctx.rotate(-0.15 - twitch);
+    ctx.fillStyle = bodyGradient(bunnyColor, earW, earH);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, earW, earH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    drawFurEdge(0, 0, earW, earH, furStroke, 16);
+    // Inner ear
     ctx.fillStyle = '#ffb3d9';
     ctx.beginPath();
-    ctx.ellipse(-size * 0.3, -size * 0.8, earSize * 0.3, earSize * 0.6, -0.3 - twitch, 0, Math.PI * 2);
-    ctx.ellipse(size * 0.3, -size * 0.8, earSize * 0.3, earSize * 0.6, 0.3 + twitch, 0, Math.PI * 2);
+    ctx.ellipse(0, earH * 0.05, earW * 0.55, earH * 0.65, 0, 0, Math.PI * 2);
     ctx.fill();
+    ctx.restore();
+
+    // Right ear
+    ctx.save();
+    ctx.translate(size * 0.25, earBaseY);
+    ctx.rotate(0.15 + twitch);
+    ctx.fillStyle = bodyGradient(bunnyColor, earW, earH);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, earW, earH, 0, 0, Math.PI * 2);
+    ctx.fill();
+    drawFurEdge(0, 0, earW, earH, furStroke, 16);
+    ctx.fillStyle = '#ffb3d9';
+    ctx.beginPath();
+    ctx.ellipse(0, earH * 0.05, earW * 0.55, earH * 0.65, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
     ctx.restore();
 
     // Face (blinks on idle cycle + mood expression + per-baby eye color)
     const babyEyeColor = pickEyeColor(baby.id || baby.name || x);
-    drawBunnyFace(0, -size * 0.3, size * 0.6, baby.sleeping, blink, deriveMood(baby), babyEyeColor);
-
-    // Tail (with subtle wag + shading)
-    const babyTailG = ctx.createRadialGradient(
-        -size * 0.95 + wagDx, size * 0.12, 0,
-        -size * 0.9 + wagDx, size * 0.2, size * 0.25
-    );
-    babyTailG.addColorStop(0, shiftColor(bunnyColor, 40));
-    babyTailG.addColorStop(1, shiftColor(bunnyColor, -25));
-    ctx.fillStyle = babyTailG;
-    ctx.beginPath();
-    ctx.arc(-size * 0.9 + wagDx, size * 0.2, size * 0.2, 0, Math.PI * 2);
-    ctx.fill();
+    drawBunnyFace(0, -size * 0.25, size * 0.65, baby.sleeping, blink, deriveMood(baby), babyEyeColor);
 
     // Draw wearables
     if (baby.wearables) {
@@ -7157,9 +7962,9 @@ function drawBunnyBaby(x, y, baby) {
         ctx.fillStyle = '#ff69b4';
         ctx.font = `${Math.max(10, size * 0.4)}px Comic Sans MS`;
         ctx.textAlign = 'center';
-        ctx.fillText(baby.name, x, y + size + 20);
+        ctx.fillText(baby.name, x, y + size + 30);
     }
-    
+
     // Status indicators
     if (baby.sleeping) {
         ctx.fillStyle = '#3f51b5';
@@ -7263,6 +8068,81 @@ function drawBunnyWearables(x, y, size, wearables) {
             ctx.fill();
             ctx.beginPath();
             ctx.arc(tfX, tfY, 1, 0, Math.PI * 2);
+            ctx.fill();
+        } else if (backItem.itemId === 'balenciaga_hoodie') {
+            // Bunniaga oversized hoodie — black distressed streetwear
+            const hoodG = ctx.createLinearGradient(x - size * 0.65, 0, x + size * 0.65, 0);
+            hoodG.addColorStop(0, '#0a0a0a');
+            hoodG.addColorStop(0.5, '#2a2a2a');
+            hoodG.addColorStop(1, '#0a0a0a');
+            ctx.fillStyle = hoodG;
+            ctx.beginPath();
+            ctx.moveTo(x - size * 0.6, y - size * 0.45);
+            ctx.quadraticCurveTo(x, y + size * 0.95, x + size * 0.6, y - size * 0.45);
+            ctx.lineTo(x + size * 0.5, y - size * 0.6);
+            ctx.quadraticCurveTo(x, y + size * 0.7, x - size * 0.5, y - size * 0.6);
+            ctx.fill();
+            // Hood behind head
+            ctx.fillStyle = '#1a1a1a';
+            ctx.beginPath();
+            ctx.ellipse(x, y - size * 0.55, size * 0.45, size * 0.3, 0, Math.PI, Math.PI * 2);
+            ctx.fill();
+            // Distressed lines
+            ctx.strokeStyle = 'rgba(80, 80, 80, 0.4)';
+            ctx.lineWidth = 0.8;
+            for (let d = 0; d < 4; d++) {
+                ctx.beginPath();
+                ctx.moveTo(x - size * 0.3 + d * size * 0.15, y - size * 0.1);
+                ctx.lineTo(x - size * 0.25 + d * size * 0.15, y + size * 0.5);
+                ctx.stroke();
+            }
+            // Logo text
+            ctx.fillStyle = '#666';
+            ctx.font = `bold ${Math.max(5, size * 0.12)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('BB', x, y + size * 0.05);
+            ctx.textAlign = 'left';
+        } else if (backItem.itemId === 'boss_suit') {
+            // Hops Boss navy blazer — tailored, sharp
+            const blazG = ctx.createLinearGradient(x - size * 0.6, 0, x + size * 0.6, 0);
+            blazG.addColorStop(0, '#0d1520');
+            blazG.addColorStop(0.3, '#1c2331');
+            blazG.addColorStop(0.7, '#283848');
+            blazG.addColorStop(1, '#0d1520');
+            ctx.fillStyle = blazG;
+            // Blazer shape — V-neck with lapels
+            ctx.beginPath();
+            ctx.moveTo(x - size * 0.55, y - size * 0.4);
+            ctx.lineTo(x - size * 0.5, y + size * 0.9);
+            ctx.lineTo(x + size * 0.5, y + size * 0.9);
+            ctx.lineTo(x + size * 0.55, y - size * 0.4);
+            ctx.lineTo(x + size * 0.1, y - size * 0.15);
+            ctx.lineTo(x, y + size * 0.1);
+            ctx.lineTo(x - size * 0.1, y - size * 0.15);
+            ctx.closePath();
+            ctx.fill();
+            // Lapels
+            ctx.strokeStyle = '#3a4a5a';
+            ctx.lineWidth = 1.5;
+            ctx.beginPath();
+            ctx.moveTo(x - size * 0.1, y - size * 0.15);
+            ctx.lineTo(x - size * 0.35, y - size * 0.45);
+            ctx.moveTo(x + size * 0.1, y - size * 0.15);
+            ctx.lineTo(x + size * 0.35, y - size * 0.45);
+            ctx.stroke();
+            // Buttons (2 gold)
+            ctx.fillStyle = '#d4af37';
+            ctx.beginPath();
+            ctx.arc(x, y + size * 0.25, 2, 0, Math.PI * 2);
+            ctx.arc(x, y + size * 0.45, 2, 0, Math.PI * 2);
+            ctx.fill();
+            // Pocket square
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.moveTo(x - size * 0.3, y + size * 0.05);
+            ctx.lineTo(x - size * 0.22, y - size * 0.05);
+            ctx.lineTo(x - size * 0.18, y + size * 0.08);
+            ctx.closePath();
             ctx.fill();
         } else {
             // Default cape/blanket with velvet gradient + gold trim
@@ -7434,6 +8314,36 @@ function drawBunnyWearables(x, y, size, wearables) {
                 ctx.ellipse(x + (gi - 1) * size * 0.03, y + size * 0.33 - gi * 0.02, size * 0.03, size * 0.08, (gi - 1) * 0.3, 0, Math.PI * 2);
                 ctx.fill();
             });
+        } else if (w.itemId === 'pierre_cardin_tie') {
+            // Pierre Hoppin — burgundy silk tie with gold crest
+            ctx.fillStyle = '#8b0000';
+            ctx.beginPath();
+            ctx.moveTo(x - size * 0.06, y + size * 0.15);
+            ctx.lineTo(x + size * 0.06, y + size * 0.15);
+            ctx.lineTo(x + size * 0.08, y + size * 0.85);
+            ctx.lineTo(x, y + size * 0.95);
+            ctx.lineTo(x - size * 0.08, y + size * 0.85);
+            ctx.closePath();
+            ctx.fill();
+            // Knot
+            ctx.fillStyle = '#6a0000';
+            ctx.beginPath();
+            ctx.ellipse(x, y + size * 0.18, size * 0.08, size * 0.05, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // Gold crest
+            ctx.fillStyle = '#d4af37';
+            ctx.beginPath();
+            ctx.arc(x, y + size * 0.5, size * 0.04, 0, Math.PI * 2);
+            ctx.fill();
+            // Diagonal stripes
+            ctx.strokeStyle = 'rgba(200, 160, 80, 0.3)';
+            ctx.lineWidth = 0.8;
+            for (let s = 0; s < 5; s++) {
+                ctx.beginPath();
+                ctx.moveTo(x - size * 0.06, y + size * (0.3 + s * 0.12));
+                ctx.lineTo(x + size * 0.06, y + size * (0.25 + s * 0.12));
+                ctx.stroke();
+            }
         } else {
             // Knitted scarf with gradient
             const scarfG = ctx.createLinearGradient(0, y + size * 0.4, 0, y + size * 1.0);
@@ -7668,10 +8578,34 @@ function drawBunnyWearables(x, y, size, wearables) {
     // === EYES SLOT — sunglasses with chrome frame + lens reflection ===
     if (wearables.eyes) {
         const isDior = wearables.eyes.itemId === 'dior_shades';
-        const frameColor = isDior ? '#d4af37' : (wearables.eyes.color || '#1a1a1a');
+        const isCK = wearables.eyes.itemId === 'calvin_klein_shades';
+        const frameColor = isDior ? '#d4af37' : isCK ? '#2c2c2c' : (wearables.eyes.color || '#1a1a1a');
         const glassSize = size * 0.22;
         const lx = x - size * 0.2, rx = x + size * 0.2, ey = y - size * 0.35;
-        // Tinted lenses with subtle gradient
+
+        if (isCK) {
+            // Calvin Bunny — matte black rectangular frames
+            const fw = glassSize * 1.3, fh = glassSize * 0.85;
+            ctx.fillStyle = 'rgba(20, 20, 25, 0.88)';
+            ctx.fillRect(lx - fw / 2, ey - fh / 2, fw, fh);
+            ctx.fillRect(rx - fw / 2, ey - fh / 2, fw, fh);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fillRect(lx - fw / 2 + 2, ey - fh / 2 + 2, fw * 0.35, fh * 0.4);
+            ctx.fillRect(rx - fw / 2 + 2, ey - fh / 2 + 2, fw * 0.35, fh * 0.4);
+            ctx.strokeStyle = '#2c2c2c';
+            ctx.lineWidth = 2.5;
+            ctx.strokeRect(lx - fw / 2, ey - fh / 2, fw, fh);
+            ctx.strokeRect(rx - fw / 2, ey - fh / 2, fw, fh);
+            ctx.beginPath();
+            ctx.moveTo(lx + fw / 2, ey);
+            ctx.lineTo(rx - fw / 2, ey);
+            ctx.moveTo(lx - fw / 2, ey);
+            ctx.lineTo(x - size * 0.5, ey + 4);
+            ctx.moveTo(rx + fw / 2, ey);
+            ctx.lineTo(x + size * 0.5, ey + 4);
+            ctx.stroke();
+        } else {
+        // Round lenses
         const lensG1 = ctx.createRadialGradient(lx - glassSize * 0.3, ey - glassSize * 0.3, 0, lx, ey, glassSize);
         lensG1.addColorStop(0, 'rgba(80, 80, 100, 0.4)');
         lensG1.addColorStop(1, 'rgba(20, 20, 30, 0.85)');
@@ -7714,6 +8648,7 @@ function drawBunnyWearables(x, y, size, wearables) {
         ctx.moveTo(rx + glassSize, ey);
         ctx.lineTo(x + size * 0.5, ey + 5);
         ctx.stroke();
+        } // close round glasses else
     }
 
     // === HELD SLOT — bouncy ball or designer shoes ===
@@ -7763,6 +8698,66 @@ function drawBunnyWearables(x, y, size, wearables) {
             ctx.beginPath();
             ctx.arc(shoeX - 2, shoeY + 3, 3, Math.PI * 0.2, Math.PI * 0.8);
             ctx.stroke();
+            return;
+        }
+        if (wearables.held.itemId === 'balenciaga_sneakers') {
+            // Bunniaga Triple-Hop chunky sneakers
+            const sx = x + size * 0.8, sy = y + size * 0.5;
+            const sw = size * 0.45, sh = size * 0.22;
+            // Triple sole
+            for (let s = 0; s < 3; s++) {
+                ctx.fillStyle = s === 0 ? '#d0d0d0' : s === 1 ? '#b0b0b0' : '#909090';
+                ctx.fillRect(sx - sw / 2, sy + sh * 0.5 + s * 3, sw, 4);
+            }
+            // Shoe body
+            const shoeG = ctx.createLinearGradient(sx, sy - sh, sx, sy + sh);
+            shoeG.addColorStop(0, '#f5f5f5');
+            shoeG.addColorStop(1, '#d0d0d0');
+            ctx.fillStyle = shoeG;
+            ctx.beginPath();
+            ctx.ellipse(sx, sy, sw / 2, sh, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // BB logo
+            ctx.fillStyle = '#333';
+            ctx.font = `bold ${Math.max(5, size * 0.1)}px Arial`;
+            ctx.textAlign = 'center';
+            ctx.fillText('BB', sx, sy + 3);
+            ctx.textAlign = 'left';
+            return;
+        }
+        if (wearables.held.itemId === 'boss_watch') {
+            // Hops Boss silver chronograph
+            const wx = x + size * 0.85, wy = y + size * 0.4;
+            const wr = size * 0.16;
+            // Watch face
+            ctx.fillStyle = '#e8e8e8';
+            ctx.beginPath();
+            ctx.arc(wx, wy, wr, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#999';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            // Inner dial
+            ctx.fillStyle = '#1a2a3a';
+            ctx.beginPath();
+            ctx.arc(wx, wy, wr * 0.8, 0, Math.PI * 2);
+            ctx.fill();
+            // Hands
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(wx, wy);
+            ctx.lineTo(wx + wr * 0.5, wy - wr * 0.2);
+            ctx.moveTo(wx, wy);
+            ctx.lineTo(wx - wr * 0.1, wy - wr * 0.55);
+            ctx.stroke();
+            // Crown
+            ctx.fillStyle = '#d4af37';
+            ctx.fillRect(wx + wr, wy - 2, 3, 4);
+            // Band
+            ctx.fillStyle = '#c0c0c0';
+            ctx.fillRect(wx - 3, wy + wr, 6, size * 0.15);
+            ctx.fillRect(wx - 3, wy - wr - size * 0.15, 6, size * 0.15);
             return;
         }
         const color = wearables.held.color || '#ff5722';
@@ -7866,15 +8861,16 @@ function drawShinyEye(cx, cy, r, eyeColor) {
     ctx.beginPath();
     ctx.arc(cx - r * 0.05, cy - r * 0.5, r * 0.08, 0, Math.PI * 2);
     ctx.fill();
-    // Outline for definition
-    ctx.strokeStyle = '#2a1a1a';
-    ctx.lineWidth = Math.max(1, r * 0.08);
+    // Soft pencil-like outline
+    ctx.strokeStyle = 'rgba(42, 26, 26, 0.5)';
+    ctx.lineWidth = Math.max(0.8, r * 0.06);
     ctx.beginPath();
     ctx.arc(cx, cy, r, 0, Math.PI * 2);
     ctx.stroke();
 }
 
 function drawBunnyFace(x, y, size, sleeping = false, blinking = false, mood = 'content', eyeColor = null) {
+    ctx.save();
     // VERY big Cromimi eyes — 0.30 of face size
     const eyeR = size * 0.30;
     const eyeOffsetX = size * 0.30;
@@ -7937,20 +8933,10 @@ function drawBunnyFace(x, y, size, sleeping = false, blinking = false, mood = 'c
         drawShinyEye(x + eyeOffsetX, eyeY, eyeR, eyeColor);
     }
 
-    // Blush cheeks — always visible (not just when happy), more prominent Cromimi-style
-    if (!sleeping) {
-        const blushAlpha = mood === 'happy' ? 0.55 : 0.3;
-        ctx.fillStyle = `rgba(255, 130, 160, ${blushAlpha})`;
-        ctx.beginPath();
-        ctx.arc(x - size * 0.42, y + size * 0.28, size * 0.11, 0, Math.PI * 2);
-        ctx.arc(x + size * 0.42, y + size * 0.28, size * 0.11, 0, Math.PI * 2);
-        ctx.fill();
-    }
-    
-    // Nose — vivid pink heart-shape with highlight (Cromimi-style)
-    const nx = x, ny = y + size * 0.32;
-    const nw = size * 0.09, nh = size * 0.07;
-    ctx.fillStyle = '#ff4a8f';
+    // Nose — small soft pink triangle like the sketch
+    const nx = x, ny = y + size * 0.30;
+    const nw = size * 0.07, nh = size * 0.055;
+    ctx.fillStyle = '#e8608a';
     ctx.beginPath();
     ctx.moveTo(nx, ny + nh * 0.5);
     ctx.bezierCurveTo(nx + nw, ny - nh, nx + nw * 1.2, ny + nh * 0.2, nx, ny + nh);
@@ -7963,10 +8949,10 @@ function drawBunnyFace(x, y, size, sleeping = false, blinking = false, mood = 'c
     ctx.arc(nx - nw * 0.3, ny, nw * 0.25, 0, Math.PI * 2);
     ctx.fill();
     
-    // Mouth — shape varies by mood
-    ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1.5;
-    const my = y + size * 0.38;
+    // Mouth — softer pencil-like strokes
+    ctx.strokeStyle = 'rgba(60, 40, 40, 0.55)';
+    ctx.lineWidth = Math.max(1, size * 0.03);
+    const my = y + size * 0.36;
     if (mood === 'hungry') {
         // Open "o" mouth
         ctx.fillStyle = '#7a2c2c';
@@ -7995,6 +8981,36 @@ function drawBunnyFace(x, y, size, sleeping = false, blinking = false, mood = 'c
         ctx.quadraticCurveTo(x + size * 0.1, my + size * 0.12, x + size * 0.15, my + size * 0.07);
         ctx.stroke();
     }
+
+    // Whiskers — 3 pairs extending from cheeks, very thin and delicate
+    ctx.strokeStyle = 'rgba(90, 70, 60, 0.28)';
+    ctx.lineWidth = Math.max(0.6, size * 0.014);
+    ctx.lineCap = 'round';
+    const wBaseX = size * 0.32;
+    const wBaseY = y + size * 0.28;
+    const wLen = size * 0.55;
+    const whiskerAngles = [-0.28, 0, 0.22];
+    for (let i = 0; i < 3; i++) {
+        const a = whiskerAngles[i];
+        const curveFactor = size * 0.08;
+        // Left whiskers
+        ctx.beginPath();
+        ctx.moveTo(x - wBaseX, wBaseY + i * size * 0.06);
+        ctx.quadraticCurveTo(
+            x - wBaseX - wLen * 0.6, wBaseY + i * size * 0.06 + a * wLen - curveFactor,
+            x - wBaseX - wLen, wBaseY + i * size * 0.06 + a * wLen
+        );
+        ctx.stroke();
+        // Right whiskers
+        ctx.beginPath();
+        ctx.moveTo(x + wBaseX, wBaseY + i * size * 0.06);
+        ctx.quadraticCurveTo(
+            x + wBaseX + wLen * 0.6, wBaseY + i * size * 0.06 + a * wLen - curveFactor,
+            x + wBaseX + wLen, wBaseY + i * size * 0.06 + a * wLen
+        );
+        ctx.stroke();
+    }
+    ctx.restore();
 }
 
 // ===== PARTICLES AND EFFECTS =====
@@ -8214,13 +9230,14 @@ function createSettleEffect(x, y) {
 // ===== UI UPDATES =====
 function updateGameUI() {
     if (!gameState) return;
-    
+
     updateConnectionInfo();
     updateDayNightCycle(gameState.dayNightCycle);
     updateCarrotCount();
     updateBabyStatus();
     updateGardenStatus();
     updateActionButtons();
+    try { if (window.WishUI) WishUI.updateHUD(); } catch (_) {}
 }
 
 function updateConnectionInfo() {
@@ -8255,9 +9272,34 @@ function updateDayNightCycle(cycle) {
 }
 
 function updateCarrotCount() {
-    if (carrotCount && gameState.garden) {
-        carrotCount.textContent = gameState.garden.carrots || 0;
-    }
+    const totalCarrots = (gameState.carrots || 0) + (gameState.garden?.carrots || 0);
+    if (carrotCount) carrotCount.textContent = totalCarrots;
+    const gemEl = document.getElementById('gemCount');
+    if (gemEl) gemEl.textContent = gameState.gems || 0;
+    // Sidebar currency displays
+    const sc = document.getElementById('sidebarCarrots');
+    if (sc) sc.textContent = totalCarrots;
+    const sg = document.getElementById('sidebarGems');
+    if (sg) sg.textContent = gameState.gems || 0;
+    // Harvest count display
+    const hc = document.getElementById('harvestCountDisplay');
+    if (hc) hc.textContent = gameState.harvestCount || 0;
+    // Update milestone task completion states
+    updateMilestoneTasks();
+}
+
+function updateMilestoneTasks() {
+    const count = gameState.harvestCount || 0;
+    const milestones = gameState.harvestMilestones || [];
+    const taskItems = document.querySelectorAll('.task-item[data-milestone]');
+    taskItems.forEach(item => {
+        const m = parseInt(item.dataset.milestone);
+        if (milestones.includes(m) || count >= m) {
+            item.classList.add('completed');
+        } else {
+            item.classList.remove('completed');
+        }
+    });
 }
 
 function updateBabyStatus() {
@@ -8317,33 +9359,36 @@ function updateGardenStatus() {
 }
 
 function updateActionButtons() {
-    if (!gameState.babies || !selectedBabyId) return;
-    
+    if (!gameState.babies) return;
+
+    // Sleep is a family action — always update regardless of selection
+    if (sleepBtn) {
+        const hasNonEggBaby = gameState.babies.some(b => b.stage !== 'egg');
+        sleepBtn.disabled = !hasNonEggBaby;
+        const anySleeping = gameState.babies.some(b => b.sleeping && b.stage !== 'egg');
+        sleepBtn.textContent = anySleeping ? '😴 Wake' : '💤 Sleep';
+    }
+
+    if (!selectedBabyId) return;
     const baby = gameState.babies.find(b => b.id === selectedBabyId);
     if (!baby) return;
-    
-    // Update button states based on baby status and game state
-    const carrots = gameState.garden?.carrots || 0;
-    
+
+    const totalCarrots = (gameState.carrots || 0) + (gameState.garden?.carrots || 0);
+
     if (feedBtn) {
-        feedBtn.disabled = baby.stage === 'egg' || carrots <= 0 || (baby.hunger || 0) > 90;
+        feedBtn.disabled = baby.stage === 'egg' || (baby.hunger || 0) > 95;
     }
-    
+
     if (playBtn) {
         playBtn.disabled = baby.stage === 'egg' || (baby.energy || 0) < 15 || baby.sleeping;
     }
-    
-    if (sleepBtn) {
-        sleepBtn.disabled = baby.stage === 'egg';
-        sleepBtn.textContent = baby.sleeping ? '😴 Wake' : '💤 Sleep';
-    }
-    
+
     if (cleanBtn) {
         cleanBtn.disabled = baby.stage === 'egg' || (baby.cleanliness || 0) > 85;
     }
-    
+
     if (petBtn) {
-        petBtn.disabled = false; // Can always pet/tap
+        petBtn.disabled = false;
         petBtn.textContent = baby.stage === 'egg' ? '👆 Tap' : '❤️ Pet';
     }
 }
@@ -8911,6 +9956,275 @@ function toggleShop() {
         setScene(_sceneBeforeShop || 'default', { lock: true, lockMs: 500 });
         _sceneBeforeShop = null;
     }
+}
+
+// === CLOSET SYSTEM — per-bunny wardrobe ===
+let closetState = { isOpen: false };
+let _sceneBeforeCloset = null;
+
+function toggleCloset() {
+    closetState.isOpen = !closetState.isOpen;
+    if (closetState.isOpen) {
+        _sceneBeforeCloset = currentScene;
+        showClosetOverlay();
+    } else {
+        hideClosetOverlay();
+        setScene(_sceneBeforeCloset || 'default', { lock: true, lockMs: 500 });
+        _sceneBeforeCloset = null;
+    }
+}
+
+function showClosetOverlay() {
+    let overlay = document.getElementById('closet-overlay');
+    if (overlay) overlay.remove();
+
+    overlay = document.createElement('div');
+    overlay.id = 'closet-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2000;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;';
+
+    const babies = gameState && gameState.babies ? gameState.babies.filter(b => b.stage !== 'egg') : [];
+    const inventory = gameState && gameState.shop ? gameState.shop.inventory : {};
+    const shopItems = shopState.items || [];
+
+    // Show only THIS player's parent bunny + baby bunnies
+    const parentWearables = gameState?.parentWearables || {};
+    const myParentId = myPlayerType === 'black' ? 'parent_black' : 'parent_white';
+    const myParentName = myPlayerType === 'black' ? 'Bunny Dad' : 'Bunny Mom';
+    const myParentEntry = { id: myParentId, name: myParentName, isParent: true, wearables: parentWearables[myParentId] || {} };
+    const allCharacters = [myParentEntry, ...babies];
+
+    let babiesHtml = allCharacters.map(baby => {
+        const wearables = baby.isParent ? baby.wearables : (baby.wearables || {});
+        const wornIds = Object.values(wearables).map(w => w?.itemId || w?.id).filter(Boolean);
+
+        const otherBabies = babies.filter(b => b.id !== baby.id);
+        let slotsHtml = ['head', 'eyes', 'neck', 'back', 'held'].map(slot => {
+            const worn = wearables[slot];
+            const wornName = worn ? (shopItems.find(i => i.id === (worn.itemId || worn.id))?.name || slot) : 'Empty';
+            const sendBtns = worn && otherBabies.length > 0 ? otherBabies.map(ob =>
+                `<button class="closet-send" data-from="${baby.id}" data-to="${ob.id}" data-slot="${slot}" data-item="${worn.itemId || worn.id}" style="background:#3f51b5;color:#fff;border:none;border-radius:6px;padding:2px 6px;cursor:pointer;font-size:0.72em;" title="Send to ${ob.name}">→${ob.name.slice(0,6)}</button>`
+            ).join('') : '';
+            return `<div style="display:flex;align-items:center;gap:5px;padding:4px 8px;background:rgba(255,255,255,0.5);border-radius:8px;font-size:0.85em;flex-wrap:wrap;">
+                <span style="font-weight:bold;width:38px;color:#8a6010;">${slot}</span>
+                <span style="flex:1;min-width:60px;">${worn ? wornName : '—'}</span>
+                ${worn ? `<button class="closet-unequip" data-baby="${baby.id}" data-slot="${slot}" style="background:#e53935;color:#fff;border:none;border-radius:6px;padding:2px 8px;cursor:pointer;font-size:0.8em;">X</button>` : ''}
+                ${sendBtns}
+            </div>`;
+        }).join('');
+
+        // Items this player owns (all players share inventory for now)
+        let ownedItems = [];
+        Object.values(inventory).forEach(playerInv => {
+            Object.keys(playerInv).forEach(itemId => {
+                if (!ownedItems.includes(itemId)) ownedItems.push(itemId);
+            });
+        });
+
+        let availableHtml = ownedItems.map(itemId => {
+            const item = shopItems.find(i => i.id === itemId);
+            if (!item) return '';
+            const isWorn = wornIds.includes(itemId);
+            const slot = getShopItemSlot(itemId);
+            return `<button class="closet-equip" data-baby="${baby.id}" data-item="${itemId}" data-slot="${slot}"
+                style="padding:6px 10px;margin:3px;border:2px solid ${isWorn ? '#4caf50' : '#c8a050'};border-radius:10px;background:${isWorn ? 'rgba(76,175,80,0.15)' : 'rgba(255,250,220,0.8)'};cursor:pointer;font-size:0.85em;font-family:Georgia;">
+                ${isWorn ? '✓ ' : ''}${item.name}
+            </button>`;
+        }).join('');
+
+        if (!availableHtml) availableHtml = '<div style="color:#999;font-style:italic;padding:8px;">No items purchased yet</div>';
+
+        return `<div style="background:rgba(255,255,255,0.95);border-radius:16px;padding:16px;min-width:240px;max-width:300px;box-shadow:0 4px 20px rgba(0,0,0,0.15);border:2px solid rgba(255,105,180,0.3);">
+            <div style="font-weight:bold;font-size:1.1em;color:#ff69b4;margin-bottom:10px;text-align:center;">${baby.name}'s Closet 👗</div>
+            <div style="margin-bottom:10px;">${slotsHtml}</div>
+            <div style="font-weight:bold;font-size:0.9em;color:#8a6010;margin-bottom:6px;">Available Items:</div>
+            <div style="display:flex;flex-wrap:wrap;">${availableHtml}</div>
+        </div>`;
+    }).join('');
+
+    if (!babiesHtml) babiesHtml = '<div style="color:#fff;font-size:1.2em;">No hatched bunnies yet!</div>';
+
+    overlay.innerHTML = `
+        <div style="display:flex;gap:16px;flex-wrap:wrap;justify-content:center;align-items:flex-start;max-height:90vh;overflow-y:auto;padding:20px;">
+            ${babiesHtml}
+        </div>
+        <button id="close-closet" style="position:absolute;top:16px;right:24px;background:rgba(40,20,10,0.9);color:#fff;border:2px solid #c8a050;border-radius:50%;width:40px;height:40px;font-size:1.3em;cursor:pointer;">X</button>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#close-closet').addEventListener('click', toggleCloset);
+
+    overlay.querySelectorAll('.closet-equip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const babyId = btn.dataset.baby;
+            const itemId = btn.dataset.item;
+            const slot = btn.dataset.slot;
+            if (socket && socket.connected) {
+                socket.emit('equip_wearable', { babyId, itemId, slot });
+                setTimeout(() => { toggleCloset(); toggleCloset(); }, 300);
+            }
+        });
+    });
+
+    overlay.querySelectorAll('.closet-unequip').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const babyId = btn.dataset.baby;
+            const slot = btn.dataset.slot;
+            if (socket && socket.connected) {
+                socket.emit('unequip_wearable', { babyId, slot });
+                setTimeout(() => { toggleCloset(); toggleCloset(); }, 300);
+            }
+        });
+    });
+
+    overlay.querySelectorAll('.closet-send').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const fromId = btn.dataset.from;
+            const toId = btn.dataset.to;
+            const slot = btn.dataset.slot;
+            const itemId = btn.dataset.item;
+            if (socket && socket.connected) {
+                socket.emit('transfer_wearable', { fromBabyId: fromId, toBabyId: toId, slot, itemId });
+                setTimeout(() => { toggleCloset(); toggleCloset(); }, 400);
+            }
+        });
+    });
+}
+
+function hideClosetOverlay() {
+    const overlay = document.getElementById('closet-overlay');
+    if (overlay) overlay.remove();
+}
+
+// === NEIGHBORHOOD SYSTEM ===
+function toggleNeighborhood() {
+    const existing = document.getElementById('neighborhood-overlay');
+    if (existing) { existing.remove(); return; }
+    showNeighborhoodOverlay();
+}
+
+async function showNeighborhoodOverlay() {
+    let overlay = document.getElementById('neighborhood-overlay');
+    if (overlay) overlay.remove();
+
+    overlay = document.createElement('div');
+    overlay.id = 'neighborhood-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2000;background:rgba(0,0,0,0.7);display:flex;flex-direction:column;align-items:center;padding-top:30px;overflow-y:auto;';
+
+    overlay.innerHTML = `
+        <div style="background:rgba(255,255,255,0.97);border-radius:20px;padding:24px;max-width:700px;width:90%;box-shadow:0 8px 40px rgba(0,0,0,0.3);">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
+                <h2 style="margin:0;color:#43a047;font-family:Georgia;">🏘 Neighborhood</h2>
+                <button id="close-neighborhood" style="background:#e53935;color:#fff;border:none;border-radius:50%;width:36px;height:36px;font-size:1.2em;cursor:pointer;">X</button>
+            </div>
+            <div id="neighborhood-settings" style="background:#f0fff0;border-radius:12px;padding:12px;margin-bottom:16px;">
+                <div style="font-weight:bold;color:#2e7d32;margin-bottom:8px;">Your Family Settings</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                    <input id="nb-family-name" type="text" maxlength="30" placeholder="Family name..." value="${(gameState?.neighborhood?.familyName || '').replace(/"/g, '&quot;')}" style="padding:6px 10px;border:2px solid #a5d6a7;border-radius:8px;flex:1;min-width:120px;font-family:Georgia;">
+                    <input id="nb-family-bio" type="text" maxlength="100" placeholder="Bio..." value="${(gameState?.neighborhood?.familyBio || '').replace(/"/g, '&quot;')}" style="padding:6px 10px;border:2px solid #a5d6a7;border-radius:8px;flex:2;min-width:150px;font-family:Georgia;">
+                    <label style="display:flex;align-items:center;gap:4px;cursor:pointer;">
+                        <input id="nb-public" type="checkbox" ${gameState?.neighborhood?.isPublic ? 'checked' : ''}>
+                        <span style="font-size:0.85em;">Public</span>
+                    </label>
+                    <button id="nb-save" style="background:#43a047;color:#fff;border:none;border-radius:8px;padding:6px 16px;cursor:pointer;font-weight:bold;">Save</button>
+                </div>
+            </div>
+            <div id="neighborhood-list" style="color:#666;text-align:center;padding:20px;">Loading families...</div>
+        </div>
+    `;
+
+    document.body.appendChild(overlay);
+
+    overlay.querySelector('#close-neighborhood').addEventListener('click', () => overlay.remove());
+    overlay.querySelector('#nb-save').addEventListener('click', () => {
+        const familyName = document.getElementById('nb-family-name').value;
+        const familyBio = document.getElementById('nb-family-bio').value;
+        const isPublic = document.getElementById('nb-public').checked;
+        if (socket && socket.connected) {
+            socket.emit('set_neighborhood', { familyName, familyBio, isPublic });
+            showMessage(isPublic ? 'Family is now public!' : 'Settings saved!', 'success');
+        }
+    });
+
+    // Fetch families
+    try {
+        const resp = await fetch('/api/neighborhood');
+        const data = await resp.json();
+        const list = document.getElementById('neighborhood-list');
+        if (!data.families || data.families.length === 0) {
+            list.innerHTML = '<div style="color:#999;padding:20px;">No public families yet. Be the first! Enable "Public" above.</div>';
+            return;
+        }
+
+        list.innerHTML = data.families.map(f => `
+            <div class="nb-family-card" data-code="${f.roomCode}" style="background:linear-gradient(135deg, #fff9f0, #fff3e0);border:2px solid #ffe0b2;border-radius:14px;padding:14px;margin-bottom:10px;cursor:pointer;transition:transform 0.2s;display:flex;gap:14px;align-items:center;">
+                <div style="font-size:2.2em;">🐰</div>
+                <div style="flex:1;">
+                    <div style="font-weight:bold;font-size:1.1em;color:#e65100;font-family:Georgia;">${f.familyName}</div>
+                    <div style="font-size:0.85em;color:#666;margin:2px 0;">${f.familyBio || ''}</div>
+                    <div style="font-size:0.8em;color:#999;">
+                        ${f.babyCount} bunnies (${f.babyNames.join(', ')}) · ${f.daysSinceCreation} days · ${f.visitorCount} visits · ${f.gems || 0} 💎
+                    </div>
+                </div>
+                <div style="background:#43a047;color:#fff;border-radius:10px;padding:6px 14px;font-size:0.9em;font-weight:bold;">Visit</div>
+            </div>
+        `).join('');
+
+        list.querySelectorAll('.nb-family-card').forEach(card => {
+            card.addEventListener('mouseenter', () => card.style.transform = 'scale(1.02)');
+            card.addEventListener('mouseleave', () => card.style.transform = 'scale(1)');
+            card.addEventListener('click', () => {
+                overlay.remove();
+                visitFamily(card.dataset.code);
+            });
+        });
+    } catch (error) {
+        document.getElementById('neighborhood-list').innerHTML = '<div style="color:#e53935;">Failed to load families</div>';
+    }
+}
+
+async function visitFamily(roomCode) {
+    try {
+        showMessage('Loading family...', 'info');
+        const resp = await fetch(`/api/neighborhood/${roomCode}`);
+        if (!resp.ok) {
+            showMessage('Family not found or private', 'error');
+            return;
+        }
+        const family = await resp.json();
+        neighborhoodState.visitingFamily = family;
+        neighborhoodState.visitingCode = roomCode;
+        isVisitorMode = true;
+
+        // Show visitor banner
+        let banner = document.getElementById('visitor-banner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'visitor-banner';
+            banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:1500;background:linear-gradient(135deg,#43a047,#2e7d32);color:#fff;padding:10px 20px;display:flex;justify-content:space-between;align-items:center;font-family:Georgia;box-shadow:0 2px 10px rgba(0,0,0,0.3);';
+            document.body.appendChild(banner);
+        }
+        banner.innerHTML = `
+            <span>🏘 Visiting <strong>${family.familyName}</strong> — ${family.familyBio || 'A bunny family'} (${family.visitorCount} visitors)</span>
+            <button id="exit-visit" style="background:#fff;color:#2e7d32;border:none;border-radius:8px;padding:6px 16px;cursor:pointer;font-weight:bold;">← Back Home</button>
+        `;
+        banner.querySelector('#exit-visit').addEventListener('click', exitVisitorMode);
+
+        backgroundNeedsRedraw = true;
+        dirtyBackground = true;
+    } catch (error) {
+        showMessage('Failed to visit family', 'error');
+    }
+}
+
+function exitVisitorMode() {
+    isVisitorMode = false;
+    neighborhoodState.visitingFamily = null;
+    neighborhoodState.visitingCode = null;
+    const banner = document.getElementById('visitor-banner');
+    if (banner) banner.remove();
+    backgroundNeedsRedraw = true;
+    dirtyBackground = true;
 }
 
 function showShopUI() {
@@ -10668,6 +11982,720 @@ function getCachedTextWidth(text, font) {
     return textMeasureCache.get(key);
 }
 
+// ===== WHISPERED WISHES (V4) =====
+// Fails silently if backend never emits wish events — old-server scenarios just never
+// see any wish UI beyond the Wish button (submit still emits, server ignores/rejects).
+const WishUI = (function() {
+    const SPOTS = [
+        { id: 'bowl',   label: 'Food Bowl',   icon: '🥣', triggers: ['feed'] },
+        { id: 'garden', label: 'Garden Plot', icon: '🌱', triggers: ['harvest', 'play'] },
+        { id: 'pad',    label: 'Sleeping Pad',icon: '💤', triggers: ['sleep', 'pet'] },
+        { id: 'pile',   label: 'Carrot Pile', icon: '🥕', triggers: ['feed', 'harvest'] },
+        { id: 'shelf',  label: 'Bookshelf',   icon: '📚', triggers: ['play', 'pet'] },
+        { id: 'shadow', label: 'Parent Shadow', icon: '🐰', triggers: ['pet'] },
+        { id: 'cave',   label: 'Cave Entrance', icon: '🏔️', triggers: ['sleep', 'pet'] }
+    ];
+    const SPOT_BY_ID = Object.fromEntries(SPOTS.map(s => [s.id, s]));
+    const ALL_TRIGGERS = ['feed', 'play', 'clean', 'pet', 'harvest', 'sleep'];
+
+    // State
+    const state = {
+        partnerShimmerSpots: new Set(),   // spotIds where partner wish is hinted (shimmer ONLY — never exposes content)
+        myActiveWishes: [],               // [{ wishId, spotId, message, expiresAt }]
+        pendingSubmit: null,
+        selectedSpot: null,
+        selectedTrigger: null,
+        jar: null,                        // { jarId, expiresAt, myTapped, partnerTapped }
+        jarCountdownTimer: null,
+        jarExpireTimer: null,
+        discoveryAttemptsAt: new Map(),   // spotId -> lastEmitTs (client-side debouncer)
+        lastServerEventAt: 0,             // used to fail-silently if backend is old
+        // V4.1 (QA P3): debounce guards to prevent double-submit from rapid clicks.
+        submitInFlightAt: 0,              // ts of last hide_wish emit (clears after 2s)
+        tapInFlightAt: 0                  // ts of last tap_wish_jar emit (clears after 1s)
+    };
+
+    function markServerActive() { state.lastServerEventAt = Date.now(); }
+
+    // ---------- Sanitization (client side; server is authoritative) ----------
+    function sanitizeWishText(raw) {
+        if (typeof raw !== 'string') return '';
+        // Strip HTML tags, control chars, normalize whitespace
+        let s = raw.replace(/<[^>]*>/g, '');
+        s = s.replace(/[\x00-\x1F\x7F]/g, '');
+        s = s.replace(/\s+/g, ' ').trim();
+        if (s.length > 140) s = s.slice(0, 140);
+        return s;
+    }
+    function escapeHtml(s) {
+        if (s == null) return '';
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+    }
+
+    // ---------- DOM refs ----------
+    function $(id) { return document.getElementById(id); }
+
+    // ---------- Hide modal ----------
+    function buildSpotGrid() {
+        const grid = $('wishSpotGrid');
+        if (!grid) return;
+        grid.innerHTML = SPOTS.map(sp => `
+            <button type="button" class="wish-spot-option" data-spot="${sp.id}">
+                <span class="wish-spot-icon">${sp.icon}</span>
+                <span>${escapeHtml(sp.label)}</span>
+            </button>`).join('');
+        Array.from(grid.querySelectorAll('.wish-spot-option')).forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.selectedSpot = btn.dataset.spot;
+                Array.from(grid.children).forEach(c => c.classList.toggle('selected', c === btn));
+                rebuildTriggerRow();
+            });
+        });
+    }
+    function rebuildTriggerRow() {
+        const row = $('wishTriggerRow');
+        if (!row) return;
+        const sp = SPOT_BY_ID[state.selectedSpot];
+        const options = sp ? sp.triggers : ALL_TRIGGERS;
+        // Reset selected trigger if it no longer applies
+        if (!options.includes(state.selectedTrigger)) state.selectedTrigger = null;
+        row.innerHTML = options.map(t => `
+            <button type="button" class="wish-trigger-option" data-trigger="${t}">${escapeHtml(t)}</button>
+        `).join('');
+        Array.from(row.querySelectorAll('.wish-trigger-option')).forEach(btn => {
+            btn.addEventListener('click', () => {
+                state.selectedTrigger = btn.dataset.trigger;
+                Array.from(row.children).forEach(c => c.classList.toggle('selected', c === btn));
+            });
+        });
+    }
+    function openHideModal() {
+        if (!socket || !socket.connected) {
+            showMessage('Not connected — cannot hide a wish.', 'error');
+            return;
+        }
+        const overlay = $('wishHideOverlay');
+        if (!overlay) return;
+        buildSpotGrid();
+        rebuildTriggerRow();
+        const ta = $('wishTextarea');
+        if (ta) ta.value = '';
+        const cc = $('wishCharCount');
+        if (cc) cc.textContent = '0';
+        renderActiveWishRow();
+        overlay.classList.add('show');
+        // V4.1 (F-6): move keyboard focus inside the modal so Escape / Tab
+        // work as expected without a mouse click.
+        setTimeout(() => { try { if (ta) ta.focus(); } catch (_) {} }, 30);
+        // Ask server for our current wishes (graceful no-op on old servers)
+        try { socket.emit('get_my_wishes', {}); } catch (_) {}
+    }
+    function closeHideModal() {
+        const overlay = $('wishHideOverlay');
+        if (overlay) overlay.classList.remove('show');
+    }
+    function renderActiveWishRow() {
+        const row = $('wishActiveRow');
+        const preview = $('wishActivePreview');
+        if (!row || !preview) return;
+        if (state.myActiveWishes.length === 0) {
+            row.style.display = 'none';
+            return;
+        }
+        const w = state.myActiveWishes[0];
+        const sp = SPOT_BY_ID[w.spotId];
+        const where = sp ? `${sp.icon} ${sp.label}` : w.spotId;
+        preview.innerHTML = `You have a wish hidden at <b>${escapeHtml(where)}</b>: "${escapeHtml(w.message || '')}"`;
+        row.style.display = 'block';
+    }
+    function submitWish() {
+        // V4.1 (QA P3): debounce — ignore a second click within 2s to avoid
+        // double-submit emitting two `hide_wish` events (second rejected by
+        // the 1/60s server rate-limit but we shouldn't rely on that).
+        const now = Date.now();
+        if (now - state.submitInFlightAt < 2000) return;
+        const submitBtn = $('wishSubmitBtn');
+        const raw = ($('wishTextarea') && $('wishTextarea').value) || '';
+        const message = sanitizeWishText(raw);
+        if (!state.selectedSpot) {
+            showMessage('Pick a hiding spot first.', 'error');
+            return;
+        }
+        // V4.1 (F-8): triggerAction picker is a client-only hint and is NOT
+        // sent over the wire. Don't block submit on it — leaving it as an
+        // optional cue rather than a required step.
+        if (message.length < 1) {
+            showMessage('Write something first.', 'error');
+            return;
+        }
+        // Send ONLY spec-shaped payload (spec: { spotId, message }) — triggerAction is a client-side hint only.
+        try {
+            socket.emit('hide_wish', { spotId: state.selectedSpot, message });
+        } catch (e) {
+            showMessage('Could not send wish.', 'error');
+            return;
+        }
+        state.submitInFlightAt = now;
+        if (submitBtn) {
+            submitBtn.disabled = true;
+            setTimeout(() => { if (submitBtn) submitBtn.disabled = false; }, 2000);
+        }
+        state.pendingSubmit = { spotId: state.selectedSpot, trigger: state.selectedTrigger, message };
+        closeHideModal();
+        showMessage('✨ Wish sent — keep an eye on your partner...', 'info');
+    }
+    function cancelMyWish() {
+        try { socket.emit('cancel_wish', {}); } catch (_) {}
+    }
+
+    // ---------- Reveal modal ----------
+    function showReveal(data) {
+        const overlay = $('wishRevealOverlay');
+        if (!overlay) return;
+        const safeMsg = escapeHtml(data.message || '');
+        const safeName = escapeHtml(data.fromPlayerName || 'your partner');
+        const sp = SPOT_BY_ID[data.spotId];
+        // V4.1 (sec polish): `sp.label` comes from a hard-coded local array
+        // so escapeHtml on `where` is paranoid but harmless. Guard against
+        // any future edit that pulls the label from a server-provided string.
+        const where = sp ? `at the ${sp.label.toLowerCase()}` : '';
+        const txtEl = $('wishRevealText');
+        const fromEl = $('wishRevealFrom');
+        if (txtEl) txtEl.innerHTML = safeMsg || '<i>(empty wish)</i>';
+        if (fromEl) fromEl.innerHTML = `— hidden by ${safeName} ${escapeHtml(where)}`;
+        overlay.classList.add('show');
+        // V4.1 (F-6): focus the primary button so Escape / Enter work without mouse.
+        setTimeout(() => { try { const b = $('wishRevealThanksBtn'); if (b) b.focus(); } catch (_) {} }, 30);
+        // Clear shimmer from that spot (wish consumed)
+        if (data.spotId) state.partnerShimmerSpots.delete(data.spotId);
+    }
+    function closeReveal() {
+        const overlay = $('wishRevealOverlay');
+        if (overlay) overlay.classList.remove('show');
+    }
+
+    // ---------- Wish Jar ----------
+    function showJar(data) {
+        markServerActive();
+        state.jar = {
+            jarId: data.jarId,
+            expiresAt: data.expiresAt || (Date.now() + 10 * 60 * 1000),
+            myTapped: false,
+            partnerTapped: false,
+            syncStartTs: 0
+        };
+        const overlay = $('wishJarOverlay');
+        if (!overlay) return;
+        $('wishJarZoneMe').classList.remove('tapped');
+        $('wishJarZonePartner').classList.remove('tapped');
+        $('wishJarTapBtn').disabled = false;
+        $('wishJarCountdown').textContent = 'Waiting for both taps...';
+        overlay.classList.add('show');
+        startJarExpireTimer();
+    }
+    function hideJar() {
+        stopJarTimers();
+        const overlay = $('wishJarOverlay');
+        if (overlay) overlay.classList.remove('show');
+        state.jar = null;
+    }
+    function startJarExpireTimer() {
+        stopJarTimers();
+        state.jarExpireTimer = setInterval(() => {
+            if (!state.jar) { stopJarTimers(); return; }
+            const remain = state.jar.expiresAt - Date.now();
+            if (remain <= 0) {
+                hideJar();
+                showMessage('The Wish Jar faded... try again after more wishes.', 'info');
+            }
+        }, 1000);
+    }
+    function stopJarTimers() {
+        if (state.jarCountdownTimer) { clearInterval(state.jarCountdownTimer); state.jarCountdownTimer = null; }
+        if (state.jarExpireTimer)    { clearInterval(state.jarExpireTimer);    state.jarExpireTimer = null; }
+    }
+    function startSyncCountdown() {
+        if (!state.jar) return;
+        state.jar.syncStartTs = Date.now();
+        if (state.jarCountdownTimer) clearInterval(state.jarCountdownTimer);
+        state.jarCountdownTimer = setInterval(() => {
+            if (!state.jar) { stopJarTimers(); return; }
+            const elapsed = Date.now() - state.jar.syncStartTs;
+            const remain = Math.max(0, 3000 - elapsed);
+            $('wishJarCountdown').textContent = remain > 0
+                ? `Sync window: ${(remain / 1000).toFixed(1)}s`
+                : 'Waiting for server...';
+            if (remain <= 0) { clearInterval(state.jarCountdownTimer); state.jarCountdownTimer = null; }
+        }, 100);
+    }
+    function tapJar() {
+        if (!state.jar) return;
+        if (!socket || !socket.connected) {
+            showMessage('Not connected — cannot tap.', 'error');
+            return;
+        }
+        if (state.jar.myTapped) return;
+        // V4.1 (QA P3): extra belt-and-braces debounce in case pointerdown
+        // fires twice (e.g. touch + synthetic mouse event). Backend enforces
+        // 1/1000ms server-side in V4.1 but we should not even try to emit.
+        const now = Date.now();
+        if (now - state.tapInFlightAt < 500) return;
+        state.tapInFlightAt = now;
+        // Spec §7.3 + frontend-agent instruction #3: do NOT send a client timestamp.
+        // Server is authoritative (backend ignores any `timestamp` field anyway).
+        try { socket.emit('tap_wish_jar', {}); } catch (_) { return; }
+        state.jar.myTapped = true;
+        const zoneMe = $('wishJarZoneMe');
+        if (zoneMe) zoneMe.classList.add('tapped');
+        const tapBtn = $('wishJarTapBtn');
+        if (tapBtn) tapBtn.disabled = true;
+        if (!state.jar.partnerTapped) startSyncCountdown();
+    }
+
+    // ---------- Socket event handlers ----------
+    function onWishHidden(data) {
+        markServerActive();
+        if (!data) return;
+        if (state.pendingSubmit && data.spotId === state.pendingSubmit.spotId) {
+            // Replace my active wishes with just this one (single-active per spec)
+            state.myActiveWishes = [{
+                wishId: data.wishId,
+                spotId: data.spotId,
+                message: state.pendingSubmit.message,
+                expiresAt: data.expiresAt
+            }];
+            state.pendingSubmit = null;
+        } else {
+            // Fallback: just store id
+            state.myActiveWishes = [{
+                wishId: data.wishId,
+                spotId: data.spotId,
+                message: '',
+                expiresAt: data.expiresAt
+            }];
+        }
+        updateHUD();
+    }
+    function onWishCancelled(data) {
+        markServerActive();
+        state.myActiveWishes = state.myActiveWishes.filter(w => w.wishId !== (data && data.wishId));
+        if (state.myActiveWishes.length === 0) state.myActiveWishes = [];
+        renderActiveWishRow();
+        updateHUD();
+        showMessage('Your wish was cancelled.', 'info');
+    }
+    function onMyWishes(data) {
+        markServerActive();
+        if (!data || !Array.isArray(data.wishes)) return;
+        state.myActiveWishes = data.wishes.map(w => ({
+            wishId: w.wishId,
+            spotId: w.spotId,
+            message: w.message || '',
+            expiresAt: w.expiresAt
+        }));
+        renderActiveWishRow();
+        updateHUD();
+    }
+    function onWishDiscovered(data) {
+        markServerActive();
+        if (!data) return;
+        showReveal(data);
+        updateHUD();
+    }
+    function onWishAuthorNotified(data) {
+        markServerActive();
+        showMessage('✨ Your partner found your wish!', 'success');
+        // Our wish is consumed — drop it locally
+        if (data && data.wishId) {
+            state.myActiveWishes = state.myActiveWishes.filter(w => w.wishId !== data.wishId);
+        } else {
+            state.myActiveWishes = [];
+        }
+        updateHUD();
+    }
+    function onWishShimmerHint(data) {
+        // Speculative: if the backend ever broadcasts partner-hidden-wish locations for shimmer,
+        // we use { spotId } here. If not emitted, shimmer simply never appears.
+        markServerActive();
+        if (data && data.spotId) state.partnerShimmerSpots.add(data.spotId);
+    }
+    function onWishJarReady(data) {
+        // V4.1 (F-1): idempotent — backend may re-emit `wish_jar_ready` on
+        // reconnect AND the initial snapshot may also trigger a syncFromGameState
+        // call that already rendered the same jar. If we already have the
+        // same jarId showing, just update expiresAt (if newer) and bail.
+        markServerActive();
+        if (!data) return;
+        if (state.jar && state.jar.jarId && state.jar.jarId === data.jarId) {
+            if (data.expiresAt && data.expiresAt > state.jar.expiresAt) {
+                state.jar.expiresAt = data.expiresAt;
+            }
+            return;
+        }
+        showJar(data);
+    }
+
+    // V4.1 (F-1/F-4): rehydrate local WishUI state from a redacted wishSystem
+    // projection arriving on joined_room / room_created / game_state_update.
+    // Backend strips everything except the caller's own active wish and the
+    // public currentJar / cooldown / counters, so this is safe to consume.
+    function syncFromGameState(ws) {
+        if (!ws || typeof ws !== 'object') return;
+        try {
+            // 1. Jar overlay — show it if the server says one is active and the
+            //    local state doesn't have it (reconnect / refresh mid-jar).
+            const serverJar = ws.currentJar || null;
+            const isLive = serverJar && typeof serverJar.expiresAt === 'number' && serverJar.expiresAt > Date.now();
+            if (isLive) {
+                if (!state.jar || state.jar.jarId !== serverJar.jarId) {
+                    showJar({ jarId: serverJar.jarId, expiresAt: serverJar.expiresAt });
+                } else if (serverJar.expiresAt > state.jar.expiresAt) {
+                    state.jar.expiresAt = serverJar.expiresAt;
+                }
+                // If the server records that *we* already tapped (e.g. we
+                // reloaded after tapping) reflect it so we don't re-emit.
+                if (serverJar.pendingTaps && typeof myPlayerId === 'string' && serverJar.pendingTaps[myPlayerId]) {
+                    state.jar.myTapped = true;
+                    const zoneMe = $('wishJarZoneMe');
+                    if (zoneMe) zoneMe.classList.add('tapped');
+                    const tapBtn = $('wishJarTapBtn');
+                    if (tapBtn) tapBtn.disabled = true;
+                }
+            } else if (state.jar) {
+                // Server no longer has a jar — hide the local overlay.
+                hideJar();
+            }
+
+            // 2. My own active wish — replace from the redacted projection.
+            //    `activeWishes` in the projection contains at most the caller's
+            //    own entry (see backend _projectGameStateFor).
+            if (ws.activeWishes && typeof ws.activeWishes === 'object') {
+                const mine = (typeof myPlayerId === 'string' && ws.activeWishes[myPlayerId]) || null;
+                if (mine && mine.wishId) {
+                    state.myActiveWishes = [{
+                        wishId: mine.wishId,
+                        spotId: mine.spotId,
+                        message: mine.message || '',
+                        expiresAt: mine.expiresAt
+                    }];
+                } else {
+                    state.myActiveWishes = [];
+                }
+                renderActiveWishRow();
+                updateHUD();
+            }
+        } catch (e) {
+            console.warn('[WishUI] syncFromGameState error:', e);
+        }
+    }
+    function onWishJarTapped(data) {
+        markServerActive();
+        if (!state.jar || !data) return;
+        const isMe = data.tappedBy === myPlayerId;
+        if (isMe) {
+            state.jar.myTapped = true;
+            $('wishJarZoneMe').classList.add('tapped');
+        } else {
+            state.jar.partnerTapped = true;
+            $('wishJarZonePartner').classList.add('tapped');
+            if (!state.jar.myTapped) startSyncCountdown();
+        }
+    }
+    function onWishJarOpened(data) {
+        markServerActive();
+        stopJarTimers();
+        const r = (data && data.rewards) || {};
+        // V4.1 (F-7): map raw wearable id to the shop's pretty name when
+        // possible, falling back to the id. Guard against shopState not
+        // having been populated yet.
+        let prettyWearable = '';
+        if (r.wearableId) {
+            let name = r.wearableId;
+            try {
+                const items = (typeof shopState !== 'undefined' && shopState && shopState.items) || [];
+                const match = items.find(it => it && it.id === r.wearableId);
+                if (match && match.name) name = match.name;
+            } catch (_) { /* fall back to id */ }
+            prettyWearable = ` + a ${escapeHtml(name)}`;
+        }
+        const lt = r.loveTokens || 0;
+        const g = r.gems || 0;
+        // V4.1 (F-2): belt-and-braces — if the winning tap's `wish_jar_tapped`
+        // broadcast never arrived (old server or race), ensure both zones
+        // visually light up so the celebration doesn't look one-sided.
+        const zoneMe = $('wishJarZoneMe');
+        const zonePartner = $('wishJarZonePartner');
+        if (zoneMe) zoneMe.classList.add('tapped');
+        if (zonePartner) zonePartner.classList.add('tapped');
+        // Celebrate
+        setTimeout(() => hideJar(), 1800);
+        const overlay = $('wishJarOverlay');
+        if (overlay) {
+            const cd = $('wishJarCountdown');
+            if (cd) cd.innerHTML = `🎉 +${lt} love • +${g} 💎${prettyWearable}`;
+        }
+        showMessage(`Wish Jar opened! +${lt} love tokens, +${g} gems.`, 'success');
+    }
+
+    // V4.1 (F-3 / B-7): server-initiated wish expiry — when the 48h decay
+    // loop removes a wish, the author gets `wish_expired { wishId }`. Drop
+    // it locally so the HUD count, sidebar badge, and hide-modal preview
+    // all reflect the loss without needing a manual refresh.
+    function onWishExpired(data) {
+        markServerActive();
+        if (!data || typeof data.wishId !== 'string') return;
+        const expiredSpot = (state.myActiveWishes.find(w => w.wishId === data.wishId) || {}).spotId;
+        state.myActiveWishes = state.myActiveWishes.filter(w => w.wishId !== data.wishId);
+        // Clear shimmer for the expired spot (if any) so we don't keep nudging
+        // the partner towards a spot whose wish no longer exists.
+        if (expiredSpot) state.partnerShimmerSpots.delete(expiredSpot);
+        renderActiveWishRow();
+        updateHUD();
+        showMessage('Your hidden wish faded away before your partner found it.', 'info');
+    }
+    function onWishJarFailed(data) {
+        markServerActive();
+        stopJarTimers();
+        const cd = data && data.cooldownEndsAt ? Math.max(0, Math.ceil((data.cooldownEndsAt - Date.now()) / 1000)) : 60;
+        $('wishJarCountdown').textContent = `Almost! Try again in ${cd}s`;
+        $('wishJarZoneMe').classList.remove('tapped');
+        $('wishJarZonePartner').classList.remove('tapped');
+        $('wishJarTapBtn').disabled = true;
+        setTimeout(() => { hideJar(); }, 2400);
+        showMessage('Almost synced! Try again in a minute.', 'info');
+    }
+    function onWishJarExpired() {
+        markServerActive();
+        hideJar();
+        showMessage('The Wish Jar faded away... hide more wishes to summon it again.', 'info');
+    }
+
+    // ---------- HUD ----------
+    function updateHUD() {
+        const n = state.myActiveWishes.length;
+        const badge = document.getElementById('sidebarWishesBadge');
+        const count = document.getElementById('sidebarWishes');
+        const btnBadge = document.getElementById('wishBtnBadge');
+        if (count) count.textContent = String(n);
+        if (badge) badge.style.display = n > 0 ? '' : 'none';
+        if (btnBadge) {
+            btnBadge.style.display = n > 0 ? 'inline-block' : 'none';
+            btnBadge.textContent = String(n);
+        }
+    }
+
+    // ---------- Discovery integration ----------
+    // Called from action handlers (feed/play/clean/pet/harvest/sleep/cave_*).
+    // Emits attempt_wish_discovery for every plausible (spotId, triggerAction) mapping.
+    // V4.1 (B-1): aligned with backend `SPOT_TRIGGER_ACTIONS` — backend was
+    // widened to accept exactly these combos, so every spot the UI offers
+    // for hiding is discoverable via at least one natural gameplay action.
+    // Cave is now reachable via pet/sleep AND explicit cave_enter/cave_exit
+    // (fired from moveBunnyToCave / moveBunnyFromCave).
+    const ACTION_SPOT_MAP = {
+        feed:       ['bowl', 'pile'],
+        play:       ['garden', 'shelf'],
+        clean:      [],                          // no wish spots tied to cleaning by spec
+        pet:        ['pad', 'shelf', 'shadow', 'cave'],
+        harvest:    ['garden', 'pile'],
+        sleep:      ['pad', 'cave'],
+        cave_enter: ['cave'],
+        cave_exit:  ['cave']
+    };
+    function attemptDiscoveryFor(action) {
+        if (!socket || !socket.connected) return;
+        const spots = ACTION_SPOT_MAP[action] || [];
+        const now = Date.now();
+        spots.forEach(spotId => {
+            // Client-side de-dupe: don't re-probe the same spot faster than once per 2s.
+            const last = state.discoveryAttemptsAt.get(spotId) || 0;
+            if (now - last < 2000) return;
+            state.discoveryAttemptsAt.set(spotId, now);
+            try {
+                socket.emit('attempt_wish_discovery', { spotId, triggerAction: action });
+            } catch (_) { /* fail silently */ }
+        });
+    }
+
+    // ---------- Canvas shimmer overlay (rendered by drawUI hook) ----------
+    // A very faint sparkle on partner-hinted spots so the discoverer gets a gentle nudge.
+    // Only renders if backend has sent at least one wish event (otherwise old-server silent).
+    function drawShimmer() {
+        if (!canvas || !ctx) return;
+        if (state.partnerShimmerSpots.size === 0) return;
+        const rect = canvas.getBoundingClientRect();
+        const w = rect.width, h = rect.height;
+        const t = Date.now() * 0.003;
+        ctx.save();
+        state.partnerShimmerSpots.forEach(spotId => {
+            const pos = spotToCanvasPos(spotId, w, h);
+            if (!pos) return;
+            const pulse = 0.4 + 0.25 * Math.sin(t * 2 + pos.x * 0.01);
+            ctx.globalAlpha = pulse;
+            ctx.fillStyle = '#fffbc4';
+            for (let i = 0; i < 3; i++) {
+                const ang = t + i * (Math.PI * 2 / 3);
+                const rx = pos.x + Math.cos(ang) * 10;
+                const ry = pos.y + Math.sin(ang) * 10;
+                ctx.beginPath();
+                ctx.arc(rx, ry, 2.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+        ctx.restore();
+    }
+    function spotToCanvasPos(spotId, w, h) {
+        // Coarse anchor points (canvas-local). These are deliberately loose: the shimmer
+        // is a NUDGE, not a pinpoint, so a fixed grid is fine even across scene changes.
+        const anchors = {
+            bowl:   { x: 0.22, y: 0.78 },
+            garden: { x: 0.15, y: 0.55 },
+            pad:    { x: 0.78, y: 0.72 },
+            pile:   { x: 0.32, y: 0.85 },
+            shelf:  { x: 0.88, y: 0.35 },
+            shadow: { x: 0.5,  y: 0.25 },
+            cave:   { x: 0.92, y: 0.85 }
+        };
+        const a = anchors[spotId];
+        if (!a) return null;
+        return { x: a.x * w, y: a.y * h };
+    }
+
+    // ---------- Setup ----------
+    function bindButtons() {
+        const wishBtn = document.getElementById('wishBtn');
+        if (wishBtn) wishBtn.addEventListener('click', openHideModal);
+
+        const hideClose = document.getElementById('wishHideCloseBtn');
+        if (hideClose) hideClose.addEventListener('click', closeHideModal);
+
+        const submit = document.getElementById('wishSubmitBtn');
+        if (submit) submit.addEventListener('click', submitWish);
+
+        const cancelBtn = document.getElementById('wishCancelBtn');
+        if (cancelBtn) cancelBtn.addEventListener('click', cancelMyWish);
+
+        const revealThanks = document.getElementById('wishRevealThanksBtn');
+        if (revealThanks) revealThanks.addEventListener('click', closeReveal);
+
+        const ta = document.getElementById('wishTextarea');
+        const cc = document.getElementById('wishCharCount');
+        if (ta && cc) {
+            ta.addEventListener('input', () => { cc.textContent = String(ta.value.length); });
+        }
+
+        const tapBtn = document.getElementById('wishJarTapBtn');
+        if (tapBtn) {
+            // pointerdown fires earliest for the 3s sync window
+            tapBtn.addEventListener('pointerdown', (e) => { e.preventDefault(); tapJar(); });
+        }
+        const jarClose = document.getElementById('wishJarCloseBtn');
+        if (jarClose) jarClose.addEventListener('click', hideJar);
+
+        // Click outside modal closes (hide/reveal only, NOT jar — jar requires explicit Later)
+        ['wishHideOverlay', 'wishRevealOverlay'].forEach(id => {
+            const overlay = document.getElementById(id);
+            if (overlay) overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) overlay.classList.remove('show');
+            });
+        });
+
+        // V4.1 (F-6): Escape-key closes the hide / reveal modals for
+        // keyboard users. Jar is intentionally NOT closed on Escape — we
+        // don't want a misclick to discard a live co-op tap opportunity.
+        document.addEventListener('keydown', (e) => {
+            if (e.key !== 'Escape') return;
+            const hide = document.getElementById('wishHideOverlay');
+            const reveal = document.getElementById('wishRevealOverlay');
+            if (hide && hide.classList.contains('show')) {
+                closeHideModal();
+                e.preventDefault();
+                return;
+            }
+            if (reveal && reveal.classList.contains('show')) {
+                closeReveal();
+                e.preventDefault();
+            }
+        });
+
+        // V4.1 (F-6): keyboard focus trap inside the hide modal so Tab /
+        // Shift+Tab cycles within the composer instead of leaking into the
+        // game canvas behind it. Simple, idempotent, overlay-scoped.
+        const hideOverlay = document.getElementById('wishHideOverlay');
+        if (hideOverlay) {
+            hideOverlay.addEventListener('keydown', (e) => {
+                if (e.key !== 'Tab') return;
+                if (!hideOverlay.classList.contains('show')) return;
+                const focusable = Array.from(hideOverlay.querySelectorAll(
+                    'button:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+                )).filter(el => el.offsetParent !== null);
+                if (focusable.length === 0) return;
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                const active = document.activeElement;
+                if (e.shiftKey && active === first) {
+                    e.preventDefault();
+                    try { last.focus(); } catch (_) {}
+                } else if (!e.shiftKey && active === last) {
+                    e.preventDefault();
+                    try { first.focus(); } catch (_) {}
+                }
+            });
+        }
+    }
+
+    function bindSocket() {
+        if (!socket) return;
+        // Graceful: wrap in try/catch so if socket lacks .on (unlikely), we don't break init.
+        try {
+            socket.on('wish_hidden', onWishHidden);
+            socket.on('wish_cancelled', onWishCancelled);
+            socket.on('my_wishes', onMyWishes);
+            socket.on('wish_discovered', onWishDiscovered);
+            socket.on('wish_author_notified', onWishAuthorNotified);
+            socket.on('wish_shimmer_hint', onWishShimmerHint); // optional speculative event
+            socket.on('wish_jar_ready', onWishJarReady);
+            socket.on('wish_jar_tapped', onWishJarTapped);
+            socket.on('wish_jar_opened', onWishJarOpened);
+            socket.on('wish_jar_failed', onWishJarFailed);
+            socket.on('wish_jar_expired', onWishJarExpired);
+            // V4.1 (F-3 / B-7): author-side notification when the decay loop
+            // removes an unfound wish. Graceful no-op on older servers.
+            socket.on('wish_expired', onWishExpired);
+        } catch (e) {
+            console.warn('[WishUI] socket binding skipped:', e);
+        }
+    }
+
+    function init() {
+        try {
+            bindButtons();
+            bindSocket();
+            updateHUD();
+        } catch (e) {
+            console.warn('[WishUI] init error (feature disabled):', e);
+        }
+    }
+
+    // Public API
+    return {
+        init,
+        attemptDiscoveryFor,
+        drawShimmer,
+        updateHUD,
+        // V4.1 (F-1/F-4): exposed for onJoinedRoom / onRoomCreated /
+        // onGameStateUpdate to rehydrate state on reconnect.
+        syncFromGameState,
+        // exposed for debugging
+        _state: state
+    };
+})();
+
 // ===== DEBUG FUNCTIONS (for development) =====
 function debugGameState() {
     console.log('Current game state:', gameState);
@@ -10683,6 +12711,7 @@ window.buyItem = buyItem;
 window.toggleShop = toggleShop;
 window.toggleBasket = toggleBasket;
 window.useItemOnBunny = useItemOnBunny;
+window.WishUI = WishUI;
 
 console.log('🐰 Bunny Family 2D Game - Loaded successfully!');
 console.log('💡 Tip: Type debugBunnyGame() in console to see current game state');

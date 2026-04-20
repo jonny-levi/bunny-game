@@ -15,6 +15,7 @@ const DailyRewardManager = require('./dailyRewards');
 const AchievementManager = require('./achievements');
 const MemoryManager = require('./memoryManager');
 const CustomizationManager = require('./customization');
+const WishSystem = require('./wishSystem');
 
 const app = express();
 const server = http.createServer(app);
@@ -84,6 +85,7 @@ const dailyRewardManager = new DailyRewardManager();
 const achievementManager = new AchievementManager();
 const memoryManager = new MemoryManager();
 const customizationManager = new CustomizationManager();
+const wishSystem = new WishSystem();
 
 // Enhanced game configuration
 const GAME_CONFIG = {
@@ -348,6 +350,60 @@ const GAME_CONFIG = {
                 slot: 'neck',
                 color: '#f8f4e8',
                 description: 'Chabun — multi-strand baroque pearls.'
+            },
+            balenciaga_hoodie: {
+                name: 'Bunniaga Hoodie',
+                cost: 26,
+                effect: { energy: 10, happiness: 5 },
+                type: 'wearable',
+                slot: 'back',
+                color: '#1a1a1a',
+                description: 'Bunniaga — oversized distressed hoodie, street luxury.'
+            },
+            boss_suit: {
+                name: 'Hops Boss Blazer',
+                cost: 32,
+                effect: { happiness: 15 },
+                type: 'wearable',
+                slot: 'back',
+                color: '#1c2331',
+                description: 'Hops Boss — tailored slim-fit navy blazer, power dressing.'
+            },
+            pierre_cardin_tie: {
+                name: 'Pierre Hoppin Tie',
+                cost: 18,
+                effect: { happiness: 6 },
+                type: 'wearable',
+                slot: 'neck',
+                color: '#8b0000',
+                description: 'Pierre Hoppin — classic silk tie, burgundy with gold crest.'
+            },
+            calvin_klein_shades: {
+                name: 'Calvin Bunny Frames',
+                cost: 24,
+                effect: { happiness: 8 },
+                type: 'wearable',
+                slot: 'eyes',
+                color: '#2c2c2c',
+                description: 'Calvin Bunny — minimal matte-black rectangular frames.'
+            },
+            balenciaga_sneakers: {
+                name: 'Bunniaga Triple-Hop',
+                cost: 35,
+                effect: { energy: 12 },
+                type: 'wearable',
+                slot: 'held',
+                color: '#e0e0e0',
+                description: 'Bunniaga — chunky triple-sole sneakers, mega flex.'
+            },
+            boss_watch: {
+                name: 'Hops Boss Chrono',
+                cost: 30,
+                effect: { happiness: 10 },
+                type: 'wearable',
+                slot: 'held',
+                color: '#c0c0c0',
+                description: 'Hops Boss — silver chronograph watch, stainless steel.'
             }
         }
     }
@@ -379,9 +435,13 @@ class GameRoom {
     initializeGameState() {
         return {
             carrots: 8,
+            gems: 0,
+            harvestCount: 0,
+            harvestMilestones: [],
             babies: [
                 {
                     id: 'baby1',
+                    bunnySkin: Math.floor(Math.random() * 100) + 1,
                     name: this.getRandomBabyName(),
                     stage: 'egg',
                     hunger: 85,
@@ -450,7 +510,18 @@ class GameRoom {
             parentWearables: {
                 parent_black: {},
                 parent_white: {}
-            }
+            },
+            // Neighborhood / multiplayer world
+            neighborhood: {
+                isPublic: false,
+                familyName: '',
+                familyBio: '',
+                visitorCount: 0,
+                lastVisitedAt: 0,
+                publicSince: 0
+            },
+            // NEW V4: Whispered Wishes / Wish Jar system
+            wishSystem: WishSystem.defaultState()
         };
     }
 
@@ -467,6 +538,7 @@ class GameRoom {
                 if (!baby.lastFed) baby.lastFed = now;
                 if (!baby.lastPlayed) baby.lastPlayed = now;
                 if (!baby.lastCleaned) baby.lastCleaned = now;
+                if (!baby.bunnySkin) baby.bunnySkin = Math.floor(Math.random() * 100) + 1;
                 if (!baby.cooperativeBonuses) {
                     baby.cooperativeBonuses = { feeding: 0, playing: 0, hatching: 0 };
                 }
@@ -522,6 +594,21 @@ class GameRoom {
                     lastGrowthCheck: now
                 };
             }
+
+            // Initialize neighborhood for legacy saves
+            if (!gameState.neighborhood) {
+                gameState.neighborhood = { isPublic: false, familyName: '', familyBio: '', visitorCount: 0, lastVisitedAt: 0, publicSince: 0 };
+            }
+
+            // NEW V4: Initialize / sanitize wish system for legacy saves.
+            // WishSystem.sanitize drops malformed entries (spec §7.9) rather
+            // than letting them crash the room on load.
+            gameState.wishSystem = WishSystem.sanitize(gameState.wishSystem);
+
+            // Initialize gems and harvest milestones for legacy saves
+            if (gameState.gems === undefined) gameState.gems = 0;
+            if (gameState.harvestCount === undefined) gameState.harvestCount = 0;
+            if (!gameState.harvestMilestones) gameState.harvestMilestones = [];
 
             // NEW: Initialize parent wearables for legacy saves
             if (!gameState.parentWearables) {
@@ -688,12 +775,28 @@ class GameRoom {
 
     addPlayer(playerId, socketId, playerType, playerData = {}) {
         const existingPlayer = this.players.get(playerId);
-        
+
         if (existingPlayer) {
             // Reconnecting player
             existingPlayer.socketId = socketId;
             existingPlayer.connected = true;
             console.log(`Player ${playerId} reconnected to room ${this.roomCode}`);
+            // V4.1 (B-2): re-emit wish_jar_ready so a mid-jar reconnecting
+            // client can re-render the overlay. game_state_update also
+            // carries currentJar via broadcastGameState, but the frontend's
+            // explicit listener is what drives the overlay animation.
+            const ws = this.gameState && this.gameState.wishSystem;
+            if (ws && ws.currentJar && ws.currentJar.expiresAt > Date.now()) {
+                const sock = io.sockets.sockets.get(socketId);
+                if (sock) {
+                    try {
+                        sock.emit('wish_jar_ready', {
+                            jarId: ws.currentJar.jarId,
+                            expiresAt: ws.currentJar.expiresAt
+                        });
+                    } catch (_e) { /* ignore stale socket */ }
+                }
+            }
         } else {
             // New player
             this.players.set(playerId, {
@@ -772,7 +875,8 @@ class GameRoom {
                 { name: 'updateGarden', fn: () => this.updateGarden() },
                 { name: 'processActionQueue', fn: () => this.processActionQueue() },
                 { name: 'autoSaveIfNeeded', fn: () => this.autoSaveIfNeeded() },
-                { name: 'broadcastCoupleStats', fn: () => this.broadcastCoupleStats() } // NEW: Periodic couple stats broadcast
+                { name: 'broadcastCoupleStats', fn: () => this.broadcastCoupleStats() }, // NEW: Periodic couple stats broadcast
+                { name: 'expireWishes', fn: () => this.expireWishesAndNotify() } // NEW V4: Wish + Jar expiry sweep
             ];
 
             let successfulUpdates = 0;
@@ -844,12 +948,8 @@ class GameRoom {
             if (baby.sleeping) {
                 // Sleeping restores energy and reduces hunger decay
                 baby.energy = Math.min(100, baby.energy + 3 * timeMultiplier);
-                baby.hunger = Math.max(0, baby.hunger - 0.3 * timeMultiplier); // Hunger increases while sleeping
-                
-                // Wake up if energy is full or if too hungry
-                if (baby.energy >= 100 || baby.hunger < 20) {
-                    baby.sleeping = false;
-                }
+                baby.hunger = Math.max(0, baby.hunger - 0.3 * timeMultiplier);
+                // Babies stay asleep until manually woken by player
             }
 
             // Cave bonuses
@@ -864,10 +964,7 @@ class GameRoom {
 
             // Night effects
             if (this.gameState.dayNightCycle === 'night') {
-                baby.energy = Math.max(0, baby.energy - 0.2 * timeMultiplier); // Get tired at night
-                if (baby.energy < 30 && !baby.sleeping) {
-                    baby.sleeping = true; // Auto-sleep when very tired at night
-                }
+                baby.energy = Math.max(0, baby.energy - 0.2 * timeMultiplier);
             }
 
             // NEW: Apply personality-specific effects
@@ -1204,6 +1301,65 @@ class GameRoom {
         }
     }
 
+    // --- V4 Wish System helpers ------------------------------------------
+
+    // Return the list of registered player IDs for this room. The "registered"
+    // gate means a socket must have actually joined the room via join_room /
+    // create_room (i.e. be in this.players) — guests and unknown sockets fail.
+    getRegisteredPlayerIds() {
+        return Array.from(this.players.keys());
+    }
+
+    // Broadcast arbitrary event to all connected players in this room.
+    broadcastToPlayers(event, payload) {
+        this.players.forEach(player => {
+            if (player.connected && player.socketId) {
+                const sock = io.sockets.sockets.get(player.socketId);
+                if (sock) {
+                    try { sock.emit(event, payload); } catch (e) { /* ignore stale */ }
+                }
+            }
+        });
+    }
+
+    // Emit to a single player by ID. No-op if player is absent / disconnected.
+    emitToPlayer(playerId, event, payload) {
+        const player = this.players.get(playerId);
+        if (!player || !player.connected || !player.socketId) return;
+        const sock = io.sockets.sockets.get(player.socketId);
+        if (!sock) return;
+        try { sock.emit(event, payload); } catch (e) { /* ignore stale */ }
+    }
+
+    // Called from the game loop: expire aged wishes + dead jars, and if the
+    // jar condition is satisfied but no jar is active, spawn one.
+    expireWishesAndNotify() {
+        const registered = this.getRegisteredPlayerIds();
+        const { expiredJarId, expiredWishes } = wishSystem.expireWishes(this.gameState);
+        if (expiredJarId) {
+            this.broadcastToPlayers('wish_jar_expired', { jarId: expiredJarId });
+        }
+        // V4.1 (B-7): notify each author when their own wish times out so
+        // the HUD counter can drop to 0 without the user needing to reopen
+        // the hide modal.
+        if (Array.isArray(expiredWishes)) {
+            for (const e of expiredWishes) {
+                if (!e || !e.authorId) continue;
+                this.emitToPlayer(e.authorId, 'wish_expired', { wishId: e.wishId });
+            }
+        }
+        // Only attempt jar spawn when both players are actually registered.
+        if (registered.length >= 2) {
+            const newJar = wishSystem.maybeSpawnJar(this.gameState, registered);
+            if (newJar) {
+                this.broadcastToPlayers('wish_jar_ready', {
+                    jarId: newJar.jarId,
+                    expiresAt: newJar.expiresAt
+                });
+            }
+        }
+    }
+
     // Enhanced Game Actions with validation, cooperative mechanics, and new features
     async feedBaby(playerId, babyId = 'baby1') {
         try {
@@ -1390,51 +1546,58 @@ class GameRoom {
     putBabyToSleep(playerId, babyId = 'baby1') {
         try {
             GameValidator.validatePlayerId(playerId);
-            GameValidator.validateBabyId(babyId);
-            
-            const baby = this.gameState.babies.find(b => b.id === babyId);
-            if (!baby) {
-                return { success: false, message: 'Baby not found!' };
-            }
-            
-            if (baby.stage === 'egg') {
-                return { success: false, message: 'Eggs don\'t need sleep!' };
+
+            // Family cuddle sleep — all non-egg babies sleep/wake together
+            const eligibleBabies = this.gameState.babies.filter(b => b.stage !== 'egg');
+            console.log(`[SLEEP] Player=${playerId} eligibleBabies=${eligibleBabies.length} stages=${this.gameState.babies.map(b => b.stage).join(',')}`);
+            if (eligibleBabies.length === 0) {
+                return { success: false, message: 'No babies to put to sleep!' };
             }
 
-            const wasSleeping = baby.sleeping;
-            baby.sleeping = !baby.sleeping;
-            
-            if (baby.sleeping) {
-                const effects = { ...GAME_CONFIG.ACTION_EFFECTS.sleep };
-                
-                // Sleepy trait bonus
-                if (baby.genetics?.trait === 'sleepy') {
-                    effects.energy += 5;
-                    effects.happiness += 2;
+            const willSleep = !eligibleBabies[0].sleeping;
+            const names = [];
+
+            for (const baby of eligibleBabies) {
+                baby.sleeping = willSleep;
+
+                if (willSleep) {
+                    const effects = { ...GAME_CONFIG.ACTION_EFFECTS.sleep };
+                    if (baby.genetics?.trait === 'sleepy') {
+                        effects.energy += 5;
+                        effects.happiness += 2;
+                    }
+                    // Cuddle bonus — extra happiness when sleeping together
+                    if (eligibleBabies.length > 1) {
+                        effects.happiness += 3;
+                    }
+                    baby.energy = Math.min(100, baby.energy + effects.energy);
+                    baby.happiness = Math.min(100, baby.happiness + effects.happiness);
+                    baby.hunger = Math.max(0, baby.hunger + effects.hunger);
                 }
-                
-                baby.energy = Math.min(100, baby.energy + effects.energy);
-                baby.happiness = Math.min(100, baby.happiness + effects.happiness);
-                baby.hunger = Math.max(0, baby.hunger + effects.hunger);
-                
-                this.broadcastAction('sleep', playerId, baby.id, { 
-                    sleeping: true, 
-                    effects,
-                    message: `${baby.name} is now sleeping peacefully 😴`
+                names.push(baby.name);
+            }
+
+            if (willSleep) {
+                const msg = eligibleBabies.length > 1
+                    ? `${names.join(', ')} are cuddling together and sleeping peacefully 😴💕`
+                    : `${names[0]} is sleeping peacefully 😴`;
+                this.broadcastAction('sleep', playerId, 'family', {
+                    sleeping: true,
+                    familyCuddle: eligibleBabies.length > 1,
+                    babyIds: eligibleBabies.map(b => b.id),
+                    message: msg
                 });
             } else {
-                this.broadcastAction('sleep', playerId, baby.id, { 
+                this.broadcastAction('sleep', playerId, 'family', {
                     sleeping: false,
-                    message: `${baby.name} woke up! 😊`
+                    babyIds: eligibleBabies.map(b => b.id),
+                    message: `The bunny family woke up! 😊`
                 });
             }
-            
+
             this.gameState.totalActions++;
-            
-            // NEW: Update couple stats
             this.updateCoupleStats('sleep', playerId);
-            
-            // Track player stats
+
             const player = this.players.get(playerId);
             if (player) {
                 player.totalActions = (player.totalActions || 0) + 1;
@@ -1595,6 +1758,7 @@ class GameRoom {
             if (baby.hatchProgress >= GAME_CONFIG.HATCH_CONFIG.maxProgress) {
                 // Hatch the egg!
                 baby.stage = 'newborn';
+                if (!baby.bunnySkin) baby.bunnySkin = Math.floor(Math.random() * 100) + 1;
                 baby.hatchProgress = 0;
                 baby.growthPoints = 0;
                 baby.hunger = 90;
@@ -1709,25 +1873,57 @@ class GameRoom {
             garden.carrots += harvestAmount;
             garden.lastHarvest = now;
             garden.lastHarvesterId = playerId;
-            
+
             // Reduce garden quality slightly after harvest
             garden.quality = Math.max(20, garden.quality - 5);
-            
+
             this.gameState.totalActions++;
-            
-            // NEW: Update couple stats
+            this.gameState.harvestCount = (this.gameState.harvestCount || 0) + 1;
+
+            // Harvest milestone rewards
+            const milestones = [
+                { count: 10,  gems: 1,  carrots: 5,  label: 'Sprout Farmer' },
+                { count: 25,  gems: 2,  carrots: 10, label: 'Green Thumb' },
+                { count: 50,  gems: 5,  carrots: 20, label: 'Harvest Hero' },
+                { count: 100, gems: 10, carrots: 30, label: 'Carrot King' },
+                { count: 200, gems: 20, carrots: 50, label: 'Legendary Farmer' },
+                { count: 500, gems: 50, carrots: 100, label: 'Garden God' }
+            ];
+
+            if (!this.gameState.harvestMilestones) this.gameState.harvestMilestones = [];
+            const hc = this.gameState.harvestCount;
+            for (const m of milestones) {
+                if (hc === m.count && !this.gameState.harvestMilestones.includes(m.count)) {
+                    this.gameState.harvestMilestones.push(m.count);
+                    this.gameState.gems = (this.gameState.gems || 0) + m.gems;
+                    garden.carrots += m.carrots;
+                    this.broadcastEvent('milestone_reward', {
+                        type: 'harvest',
+                        milestone: m.count,
+                        label: m.label,
+                        gems: m.gems,
+                        carrots: m.carrots,
+                        totalGems: this.gameState.gems,
+                        message: `🏆 ${m.label}! Harvested ${m.count} times — earned ${m.gems} 💎 + ${m.carrots} 🥕!`
+                    });
+                }
+            }
+
+            // Update couple stats
             this.updateCoupleStats('harvest', playerId);
-            
+
             // Track player stats
             const player = this.players.get(playerId);
             if (player) {
                 player.totalActions = (player.totalActions || 0) + 1;
             }
 
-            this.broadcastAction('harvest', playerId, 'garden', { 
+            this.broadcastAction('harvest', playerId, 'garden', {
                 amount: harvestAmount,
                 totalCarrots: garden.carrots,
-                gardenQuality: garden.quality
+                gardenQuality: garden.quality,
+                harvestCount: this.gameState.harvestCount,
+                gems: this.gameState.gems || 0
             });
             return { success: true, amount: harvestAmount };
         } catch (error) {
@@ -1749,30 +1945,73 @@ class GameRoom {
             };
         });
 
-        const enhancedGameState = {
-            ...this.gameState,
-            players: playersInfo,
-            babies: this.gameState.babies.map(baby => ({
-                ...baby,
-                personalityInfo: baby.genetics?.personality ? {
-                    primary: baby.genetics.personality.primary,
-                    secondary: baby.genetics.personality.secondary,
-                    strength: baby.genetics.personality.strength,
-                    traits: this.getPersonalityTraitNames(baby.genetics.personality)
-                } : null,
-                position: baby.position || { x: 400, y: 300 },
-                targetPosition: baby.targetPosition || { x: 400, y: 300 }
-            }))
-        };
+        const babiesInfo = this.gameState.babies.map(baby => ({
+            ...baby,
+            personalityInfo: baby.genetics?.personality ? {
+                primary: baby.genetics.personality.primary,
+                secondary: baby.genetics.personality.secondary,
+                strength: baby.genetics.personality.strength,
+                traits: this.getPersonalityTraitNames(baby.genetics.personality)
+            } : null,
+            position: baby.position || { x: 400, y: 300 },
+            targetPosition: baby.targetPosition || { x: 400, y: 300 }
+        }));
 
+        // V4.1 (P0-1): per-recipient redaction of wishSystem. The raw
+        // gameState.wishSystem.activeWishes contains EVERY player's hidden
+        // wish plaintext — broadcasting it to both sockets leaks the
+        // partner's wish before any discovery happens. Each player only sees
+        // their own pending wish in the broadcast payload. The full
+        // unredacted state is still what gets persisted via saveGameState.
         this.players.forEach(player => {
-            if (player.connected) {
-                const socket = io.sockets.sockets.get(player.socketId);
-                if (socket) {
-                    socket.emit('game_state_update', enhancedGameState);
-                }
-            }
+            if (!player.connected) return;
+            const socket = io.sockets.sockets.get(player.socketId);
+            if (!socket) return;
+            socket.emit('game_state_update', this._projectGameStateFor(player.id, playersInfo, babiesInfo));
         });
+    }
+
+    // V4.1 (P0-1): build a copy of gameState safe to send to `playerId`. Only
+    // the caller's own active wish (if any) is included in wishSystem;
+    // partner wishes and recentDiscoveries metadata are omitted. Everything
+    // else is untouched.
+    _projectGameStateFor(playerId, playersInfo, babiesInfo) {
+        const base = this.gameState;
+        const wsRaw = base.wishSystem || {};
+        const ownWish = (wsRaw.activeWishes || {})[playerId] || null;
+        const projectedWishSystem = {
+            currentJar:          wsRaw.currentJar || null,
+            jarCooldownUntil:    wsRaw.jarCooldownUntil || 0,
+            wishJarsOpenedTotal: wsRaw.wishJarsOpenedTotal || 0,
+            // Only the caller's own wish. Partner wishes are never included.
+            activeWishes:        ownWish ? { [playerId]: ownWish } : {}
+            // recentDiscoveries intentionally omitted — frontend doesn't
+            // consume it and it adds unnecessary metadata to every frame.
+        };
+        return {
+            ...base,
+            players: playersInfo,
+            babies:  babiesInfo,
+            wishSystem: projectedWishSystem
+        };
+    }
+
+    // V4.1 (P0-1): build a redacted snapshot for a single joining player.
+    // Used by room_created / joined_room payloads so the initial frame is
+    // subject to the same per-player wishSystem redaction as broadcasts.
+    buildInitialGameStateFor(playerId, playersInfo) {
+        const babiesInfo = (this.gameState.babies || []).map(baby => ({
+            ...baby,
+            personalityInfo: baby.genetics?.personality ? {
+                primary: baby.genetics.personality.primary,
+                secondary: baby.genetics.personality.secondary,
+                strength: baby.genetics.personality.strength,
+                traits: this.getPersonalityTraitNames(baby.genetics.personality)
+            } : null,
+            position: baby.position || { x: 400, y: 300 },
+            targetPosition: baby.targetPosition || { x: 400, y: 300 }
+        }));
+        return this._projectGameStateFor(playerId, playersInfo, babiesInfo);
     }
 
     // NEW: Get human-readable personality trait names
@@ -1956,14 +2195,15 @@ class GameRoom {
         // Roll for special egg
         if (Math.random() < config.specialEggChance) {
             const specialTypes = Object.keys(config.specialEggs);
-            let totalChance = 0;
-            
+            const roll = Math.random();
+            let cumulative = 0;
+
             for (const type of specialTypes) {
-                totalChance += config.specialEggs[type].chance;
-                if (Math.random() < totalChance) {
+                cumulative += config.specialEggs[type].chance;
+                if (roll < cumulative) {
                     eggType = type;
                     const specialConfig = config.specialEggs[type];
-                    
+
                     eggData = {
                         name: specialConfig.name,
                         description: specialConfig.description,
@@ -1990,26 +2230,48 @@ class GameRoom {
     // NEW: Handle egg discovery (carrot payment)
     discoverEgg(playerId, eggId) {
         const config = GAME_CONFIG.EGG_SPAWNING;
-        
-        // Check if player has enough carrots
-        if (this.gameState.carrots < config.cost) {
-            return { success: false, message: `Need ${config.cost} carrots to discover the egg!` };
+
+        // Enforce max babies
+        if (this.gameState.babies.length >= config.maxBabies) {
+            return { success: false, message: 'Too many babies! Max reached.' };
         }
-        
+
+        // Check both carrot pools (consistent with buyShopItem)
+        const totalCarrots = (this.gameState.carrots || 0) + (this.gameState.garden?.carrots || 0);
+        if (totalCarrots < config.cost) {
+            return { success: false, message: `Need ${config.cost} carrots to discover the egg! You have ${totalCarrots}.` };
+        }
+
         // Find the egg
         const eggIndex = this.gameState.eggSpawning.discoveredEggs.findIndex(egg => egg.id === eggId);
         if (eggIndex === -1) {
             return { success: false, message: 'Egg not found or already discovered!' };
         }
-        
+
         const egg = this.gameState.eggSpawning.discoveredEggs[eggIndex];
-        
-        // Pay the cost
-        this.gameState.carrots -= config.cost;
-        
-        // Create the actual baby egg
+
+        // Deduct from garden carrots first, then base carrots
+        let remaining = config.cost;
+        const gardenCarrots = this.gameState.garden?.carrots || 0;
+        if (gardenCarrots >= remaining) {
+            this.gameState.garden.carrots -= remaining;
+        } else {
+            remaining -= gardenCarrots;
+            if (this.gameState.garden) this.gameState.garden.carrots = 0;
+            this.gameState.carrots -= remaining;
+        }
+
+        // Guard against negative carrots from race condition
+        if (this.gameState.carrots < 0) {
+            this.gameState.carrots += remaining;
+            if (this.gameState.garden) this.gameState.garden.carrots = gardenCarrots;
+            return { success: false, message: 'Insufficient carrots!' };
+        }
+
+        // Create the actual baby egg with unique ID and random skin
         const newBaby = {
-            id: `baby${this.gameState.babies.length + 1}`,
+            id: `baby_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+            bunnySkin: Math.floor(Math.random() * 100) + 1,
             name: this.getRandomBabyName(),
             stage: 'egg',
             hunger: 85,
@@ -2082,7 +2344,7 @@ class GameRoom {
                         const newStage = config.stages[currentStageIndex + 1];
                         
                         baby.stage = newStage;
-                        baby.growthPoints = 0; // Reset for next stage
+                        baby.growthPoints = baby.growthPoints % config.growthPointsPerStage;
                         
                         // Record the transition
                         this.gameState.growthSystem.stageTransitions.push({
@@ -2145,15 +2407,23 @@ class GameRoom {
         }
 
         // Deduct from garden carrots first (earned), then shop carrots
+        const prevGardenCarrots = this.gameState.garden.carrots || 0;
         let remaining = item.cost;
-        if (this.gameState.garden.carrots >= remaining) {
+        if (prevGardenCarrots >= remaining) {
             this.gameState.garden.carrots -= remaining;
         } else {
-            remaining -= this.gameState.garden.carrots;
+            remaining -= prevGardenCarrots;
             this.gameState.garden.carrots = 0;
             this.gameState.carrots -= remaining;
         }
-        
+
+        // Rollback if race condition drove carrots negative
+        if (this.gameState.carrots < 0) {
+            this.gameState.carrots += remaining;
+            this.gameState.garden.carrots = prevGardenCarrots;
+            return { success: false, message: 'Insufficient carrots!' };
+        }
+
         // Add to inventory
         if (!this.gameState.shop.inventory[playerId]) {
             this.gameState.shop.inventory[playerId] = {};
@@ -2803,11 +3073,13 @@ io.on('connection', (socket) => {
                 playersInfo[pid] = { name: p.name || 'Player', type: p.type, bunnyColor: p.bunnyColor, connected: p.connected };
             });
 
+            // V4.1 (P0-1): use per-player redacted projection so the initial
+            // frame doesn't leak any partner wish plaintext.
             socket.emit('room_created', {
                 roomCode: room.roomCode,
                 playerId: playerId,
                 playerType: playerType,
-                gameState: { ...room.gameState, players: playersInfo }
+                gameState: room.buildInitialGameStateFor(playerId, playersInfo)
             });
 
             console.log(`Room created: ${room.roomCode} by player: ${playerId}`);
@@ -2896,11 +3168,13 @@ io.on('connection', (socket) => {
                 joinPlayersInfo[pid] = { name: p.name || 'Player', type: p.type, bunnyColor: p.bunnyColor, connected: p.connected };
             });
 
+            // V4.1 (P0-1): use per-player redacted projection so the initial
+            // frame doesn't leak any partner wish plaintext.
             socket.emit('joined_room', {
                 roomCode: room.roomCode,
                 playerId: playerId,
                 playerType: playerType,
-                gameState: { ...room.gameState, players: joinPlayersInfo }
+                gameState: room.buildInitialGameStateFor(playerId, joinPlayersInfo)
             });
 
             // Notify the other player with partner info
@@ -3711,6 +3985,112 @@ io.on('connection', (socket) => {
         }
     });
 
+    socket.on('set_neighborhood', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+            if (!room.gameState.neighborhood) {
+                room.gameState.neighborhood = { isPublic: false, familyName: '', familyBio: '', visitorCount: 0, lastVisitedAt: 0, publicSince: 0 };
+            }
+            const n = room.gameState.neighborhood;
+            if (typeof data.isPublic === 'boolean') {
+                n.isPublic = data.isPublic;
+                if (data.isPublic && !n.publicSince) n.publicSince = Date.now();
+            }
+            if (typeof data.familyName === 'string') n.familyName = data.familyName.replace(/[<>&"']/g, '').substring(0, 30);
+            if (typeof data.familyBio === 'string') n.familyBio = data.familyBio.replace(/[<>&"']/g, '').substring(0, 100);
+            neighborhoodCache.timestamp = 0;
+            room.broadcastGameState();
+        } catch (error) {
+            console.error('Set neighborhood error:', error);
+        }
+    });
+
+    socket.on('equip_wearable', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+            if (!data.slot || !data.itemId) { socket.emit('action_failed', { message: 'Missing data' }); return; }
+            const validSlots = ['head', 'eyes', 'neck', 'back', 'held'];
+            if (!validSlots.includes(data.slot)) { socket.emit('action_failed', { message: 'Invalid slot' }); return; }
+
+            // Support both babies and parents
+            if (data.babyId === 'parent_black' || data.babyId === 'parent_white') {
+                if (!room.gameState.parentWearables) room.gameState.parentWearables = { parent_black: {}, parent_white: {} };
+                room.gameState.parentWearables[data.babyId][data.slot] = { itemId: data.itemId, id: data.itemId, color: data.color || '#ff69b4' };
+            } else {
+                const baby = room.gameState.babies.find(b => b.id === data.babyId);
+                if (!baby) { socket.emit('action_failed', { message: 'Bunny not found' }); return; }
+                if (!baby.wearables) baby.wearables = {};
+                baby.wearables[data.slot] = { itemId: data.itemId, id: data.itemId, color: data.color || '#ff69b4' };
+            }
+            room.broadcastGameState();
+        } catch (error) {
+            console.error('Equip wearable error:', error);
+            socket.emit('action_failed', { message: 'Failed to equip item' });
+        }
+    });
+
+    socket.on('unequip_wearable', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+            if (!data.slot) { socket.emit('action_failed', { message: 'Missing slot' }); return; }
+
+            if (data.babyId === 'parent_black' || data.babyId === 'parent_white') {
+                if (room.gameState.parentWearables?.[data.babyId]) {
+                    delete room.gameState.parentWearables[data.babyId][data.slot];
+                }
+            } else {
+                const baby = room.gameState.babies.find(b => b.id === data.babyId);
+                if (!baby) { socket.emit('action_failed', { message: 'Bunny not found' }); return; }
+                if (baby.wearables) delete baby.wearables[data.slot];
+            }
+            room.broadcastGameState();
+        } catch (error) {
+            console.error('Unequip wearable error:', error);
+            socket.emit('action_failed', { message: 'Failed to unequip item' });
+        }
+    });
+
+    socket.on('transfer_wearable', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+            if (!data.slot || !data.itemId) { socket.emit('action_failed', { message: 'Transfer failed' }); return; }
+
+            // Helper to get wearables object for baby or parent
+            function getWearables(id) {
+                if (id === 'parent_black' || id === 'parent_white') {
+                    if (!room.gameState.parentWearables) room.gameState.parentWearables = { parent_black: {}, parent_white: {} };
+                    return room.gameState.parentWearables[id];
+                }
+                const baby = room.gameState.babies.find(b => b.id === id);
+                if (!baby) return null;
+                if (!baby.wearables) baby.wearables = {};
+                return baby.wearables;
+            }
+
+            const fromW = getWearables(data.fromBabyId);
+            const toW = getWearables(data.toBabyId);
+            if (!fromW || !toW) { socket.emit('action_failed', { message: 'Bunny not found' }); return; }
+            delete fromW[data.slot];
+            toW[data.slot] = { itemId: data.itemId, id: data.itemId, color: data.color || '#ff69b4' };
+            room.broadcastGameState();
+        } catch (error) {
+            console.error('Transfer wearable error:', error);
+            socket.emit('action_failed', { message: 'Transfer failed' });
+        }
+    });
+
     socket.on('get_inventory', (data = {}) => {
         try {
             const playerData = playerSockets.get(socket.id);
@@ -3724,6 +4104,328 @@ io.on('connection', (socket) => {
         } catch (error) {
             console.error('Get inventory error:', error);
             socket.emit('action_failed', { message: 'Failed to get inventory' });
+        }
+    });
+
+    // === V4: Whispered Wishes / Wish Jar ===
+
+    socket.on('hide_wish', async (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) {
+                socket.emit('action_failed', { message: 'Player not found' });
+                return;
+            }
+
+            // V4.1 (P1-1): rolling-window rate-limit — spec says 1/60s.
+            // Leave the legacy global 60s cap in place as a secondary gate.
+            try {
+                GameValidator.checkRollingWindow(playerData.playerId, 'hide_wish', 1, 60000, rateLimits);
+                GameValidator.validateRateLimit(playerData.playerId, 'hide_wish', rateLimits);
+            } catch (error) {
+                socket.emit('action_failed', { message: error.message });
+                return;
+            }
+
+            const room = rooms.get(playerData.roomCode);
+            if (!room) {
+                socket.emit('action_failed', { message: 'Room not found' });
+                return;
+            }
+
+            // Registered-player gate: socket must have a playerId known to this
+            // room. Unknown/guest sockets are rejected here.
+            const registered = room.getRegisteredPlayerIds();
+            if (!registered.includes(playerData.playerId)) {
+                socket.emit('action_failed', { message: 'Only room members can hide wishes' });
+                return;
+            }
+
+            // Spot + message validation (server-side before storage).
+            let spotId, message;
+            try {
+                spotId  = GameValidator.validateWishSpotId(data.spotId);
+                message = GameValidator.validateWishMessage(data.message);
+            } catch (error) {
+                socket.emit('action_failed', { message: error.message });
+                return;
+            }
+
+            const result = wishSystem.hideWish(room.gameState, playerData.playerId, spotId, message, registered);
+            if (!result.success) {
+                socket.emit('action_failed', { message: result.message || 'Could not hide wish' });
+                return;
+            }
+
+            // Ack sender only — does NOT broadcast to partner.
+            socket.emit('wish_hidden', {
+                wishId:    result.wishId,
+                spotId:    result.spotId,
+                expiresAt: result.expiresAt
+            });
+
+            // Update couple stat
+            if (!room.gameState.coupleStats) room.gameState.coupleStats = {};
+            room.gameState.coupleStats.wishesHidden = (room.gameState.coupleStats.wishesHidden || 0) + 1;
+
+            // Persist — hiding is a meaningful state change.
+            room.saveGameState().catch(err => console.error('Save after hide_wish failed:', err));
+        } catch (error) {
+            console.error('hide_wish error:', sanitizeInput(error.message || ''));
+            socket.emit('action_failed', { message: 'Failed to hide wish' });
+        }
+    });
+
+    socket.on('get_my_wishes', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+
+            // V4.1 (P2-3): rate-limit this read to stop a client from spamming
+            // it hundreds of times/sec to amplify CPU + socket egress.
+            try {
+                GameValidator.checkRollingWindow(playerData.playerId, 'get_my_wishes', 10, 10000, rateLimits);
+            } catch (_e) {
+                return; // silent drop — frontend shouldn't be hitting this often
+            }
+
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+
+            const registered = room.getRegisteredPlayerIds();
+            if (!registered.includes(playerData.playerId)) return;
+
+            const result = wishSystem.getMyWishes(room.gameState, playerData.playerId, registered);
+            socket.emit('my_wishes', { wishes: result.wishes });
+        } catch (error) {
+            console.error('get_my_wishes error:', error);
+        }
+    });
+
+    socket.on('cancel_wish', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+
+            // V4.1 (P2-3): rate-limit cancel — previously only indirectly
+            // bounded by the 1/60s hide_wish cap, which lets a no-wish spam
+            // through.
+            try {
+                GameValidator.checkRollingWindow(playerData.playerId, 'cancel_wish', 5, 60000, rateLimits);
+            } catch (error) {
+                socket.emit('action_failed', { message: error.message });
+                return;
+            }
+
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+
+            const registered = room.getRegisteredPlayerIds();
+            if (!registered.includes(playerData.playerId)) {
+                socket.emit('action_failed', { message: 'Only room members can cancel wishes' });
+                return;
+            }
+
+            const result = wishSystem.cancelWish(room.gameState, playerData.playerId, registered);
+            if (result.success) {
+                socket.emit('wish_cancelled', { wishId: result.wishId });
+                room.saveGameState().catch(err => console.error('Save after cancel_wish failed:', err));
+            } else {
+                socket.emit('action_failed', { message: 'No active wish to cancel' });
+            }
+        } catch (error) {
+            console.error('cancel_wish error:', error);
+            socket.emit('action_failed', { message: 'Failed to cancel wish' });
+        }
+    });
+
+    socket.on('attempt_wish_discovery', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+
+            // V4.1 (P1-1): rolling-window rate-limit — spec says 20/10s.
+            // The legacy 60s global cap stays in place as a secondary gate.
+            try {
+                GameValidator.checkRollingWindow(playerData.playerId, 'attempt_wish_discovery', 20, 10000, rateLimits);
+                GameValidator.validateRateLimit(playerData.playerId, 'attempt_wish_discovery', rateLimits);
+            } catch (error) {
+                // Silently drop — don't surface a scary "slow down" on normal play.
+                return;
+            }
+
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+
+            const registered = room.getRegisteredPlayerIds();
+            if (!registered.includes(playerData.playerId)) return;
+
+            let spotId, triggerAction;
+            try {
+                spotId        = GameValidator.validateWishSpotId(data.spotId);
+                triggerAction = GameValidator.validateWishTriggerAction(data.triggerAction);
+            } catch (error) {
+                // Bad inputs — silently ignore rather than leak info.
+                return;
+            }
+
+            const result = wishSystem.tryDiscoverAt(room.gameState, playerData.playerId, spotId, triggerAction, registered);
+            if (!result.success || !result.discovered) return;
+
+            // Look up the author's display name.
+            const authorPlayer = room.players.get(result.wish.authorId);
+            const fromPlayerName = authorPlayer && authorPlayer.name ? authorPlayer.name : 'Partner';
+
+            // Reward: +1 love token to both players. Love tokens in this
+            // codebase are represented as gems (rare currency); we mint
+            // exactly what the spec calls for — a single love token to each
+            // player — by crediting the shared gems counter by 1 (each
+            // player sees it in the shared gameState).
+            const rewardLoveTokens = 1;
+            if (typeof room.gameState.gems !== 'number') room.gameState.gems = 0;
+            // Two players x 1 each = 2 tokens shared into the pool.
+            room.gameState.gems += rewardLoveTokens * 2;
+
+            // Update couple stat
+            if (!room.gameState.coupleStats) room.gameState.coupleStats = {};
+            room.gameState.coupleStats.wishesDiscovered = (room.gameState.coupleStats.wishesDiscovered || 0) + 1;
+
+            // Deliver the discovery only to the discovering player.
+            socket.emit('wish_discovered', {
+                wishId:  result.wish.wishId,
+                message: result.wish.message,
+                fromPlayerName,
+                spotId:  result.wish.spotId,
+                rewardLoveTokens
+            });
+
+            // Let the author know via a soft toast (they never see the text
+            // again; just the "they found it" signal).
+            room.emitToPlayer(result.wish.authorId, 'wish_author_notified', {
+                wishId: result.wish.wishId,
+                spotId: result.wish.spotId
+            });
+
+            // Memory entry for the discovery.
+            memoryManager.recordCooperativeAction(room.roomCode, 'wish_discovered',
+                [result.wish.authorId, playerData.playerId], [])
+                .catch(err => console.error('wish_discovered memory record failed:', err));
+
+            // Jar condition may now be met — spawn + broadcast if so.
+            const newJar = wishSystem.maybeSpawnJar(room.gameState, registered);
+            if (newJar) {
+                room.broadcastToPlayers('wish_jar_ready', {
+                    jarId: newJar.jarId,
+                    expiresAt: newJar.expiresAt
+                });
+            }
+
+            room.broadcastGameState();
+            room.saveGameState().catch(err => console.error('Save after discover failed:', err));
+        } catch (error) {
+            console.error('attempt_wish_discovery error:', error);
+        }
+    });
+
+    socket.on('tap_wish_jar', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+
+            // V4.1 (P1-1, B-6): rolling-window rate-limit — spec says 1/s.
+            // The legacy 60s global cap stays in place as a secondary gate.
+            try {
+                GameValidator.checkRollingWindow(playerData.playerId, 'tap_wish_jar', 1, 1000, rateLimits);
+                GameValidator.validateRateLimit(playerData.playerId, 'tap_wish_jar', rateLimits);
+            } catch (error) {
+                socket.emit('action_failed', { message: error.message });
+                return;
+            }
+
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+
+            const registered = room.getRegisteredPlayerIds();
+            if (!registered.includes(playerData.playerId)) {
+                socket.emit('action_failed', { message: 'Only room members can tap the jar' });
+                return;
+            }
+
+            // Security: spec §7.3 — client timestamp NOT trusted. We ignore
+            // data.timestamp entirely; the wish system uses server Date.now().
+            const result = wishSystem.registerTap(room.gameState, playerData.playerId, registered);
+            if (!result.success) {
+                if (result.code === 'no_jar') {
+                    socket.emit('action_failed', { message: 'No active wish jar' });
+                }
+                return;
+            }
+
+            if (result.status === 'waiting') {
+                // Let both players see who tapped first (partner animation).
+                room.broadcastToPlayers('wish_jar_tapped', {
+                    jarId:   result.jarId,
+                    tappedBy: result.tappedBy
+                });
+                return;
+            }
+
+            // V4.1 (B-9): for non-'waiting' resolutions the 2nd tap was the
+            // one that resolved the jar. Emit wish_jar_tapped first so the
+            // first player sees their partner's zone light up before the
+            // open/fail animation fires.
+            if (result.status === 'opened' || result.status === 'failed') {
+                room.broadcastToPlayers('wish_jar_tapped', {
+                    jarId: result.jarId,
+                    tappedBy: playerData.playerId
+                });
+            }
+
+            if (result.status === 'expired') {
+                room.broadcastToPlayers('wish_jar_expired', { jarId: result.jarId });
+                return;
+            }
+
+            if (result.status === 'failed') {
+                room.broadcastToPlayers('wish_jar_failed', {
+                    reason: result.reason,
+                    cooldownEndsAt: result.cooldownEndsAt
+                });
+                room.saveGameState().catch(err => console.error('Save after jar fail failed:', err));
+                return;
+            }
+
+            if (result.status === 'opened') {
+                // Apply rewards server-side ONLY (spec §7.7).
+                if (typeof room.gameState.gems !== 'number') room.gameState.gems = 0;
+                room.gameState.gems += result.rewards.gems || 0;
+
+                // Memory entry — V4.1 (P3-2) credit the actual tap pair, not
+                // every registered player (avoids crediting stale ghosts).
+                const tappers = Array.isArray(result.tappedBy) && result.tappedBy.length > 0
+                    ? result.tappedBy
+                    : registered;
+                memoryManager.recordCooperativeAction(room.roomCode, 'wish_jar_opened',
+                    tappers, [])
+                    .catch(err => console.error('wish_jar_opened memory failed:', err));
+
+                // Update couple stat
+                if (!room.gameState.coupleStats) room.gameState.coupleStats = {};
+                room.gameState.coupleStats.wishJarsOpened = (room.gameState.coupleStats.wishJarsOpened || 0) + 1;
+
+                const memoryId = `jar_${result.jarId}`;
+
+                room.broadcastToPlayers('wish_jar_opened', {
+                    rewards: result.rewards,
+                    memoryId
+                });
+
+                room.broadcastGameState();
+                room.saveGameState().catch(err => console.error('Save after jar open failed:', err));
+            }
+        } catch (error) {
+            console.error('tap_wish_jar error:', error);
+            socket.emit('action_failed', { message: 'Tap failed' });
         }
     });
 
@@ -3794,6 +4496,70 @@ app.get('/health', (req, res) => {
         status: 'healthy',
         timestamp: Date.now()
     });
+});
+
+// === NEIGHBORHOOD REST API ===
+let neighborhoodCache = { data: null, timestamp: 0 };
+
+app.get('/api/neighborhood', async (req, res) => {
+    try {
+        const now = Date.now();
+        if (neighborhoodCache.data && now - neighborhoodCache.timestamp < 30000) {
+            return res.json({ families: neighborhoodCache.data });
+        }
+        const families = await gameStateManager.listPublicRooms();
+        neighborhoodCache = { data: families, timestamp: now };
+        res.json({ families });
+    } catch (error) {
+        console.error('Neighborhood list error:', error);
+        res.status(500).json({ error: 'Failed to load neighborhood' });
+    }
+});
+
+app.get('/api/neighborhood/:roomCode', async (req, res) => {
+    try {
+        const roomCode = (req.params.roomCode || '').toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 6);
+        if (roomCode.length !== 6) return res.status(400).json({ error: 'Invalid room code' });
+
+        let gameState;
+        const room = rooms.get(roomCode);
+        if (room) {
+            gameState = room.gameState;
+        } else {
+            const saved = await gameStateManager.loadRoomState(roomCode);
+            if (!saved) return res.status(404).json({ error: 'Family not found' });
+            gameState = saved.gameState;
+        }
+
+        if (!gameState.neighborhood?.isPublic) {
+            return res.status(403).json({ error: 'This family is private' });
+        }
+
+        if (room) {
+            room.gameState.neighborhood.visitorCount = (room.gameState.neighborhood.visitorCount || 0) + 1;
+            room.gameState.neighborhood.lastVisitedAt = Date.now();
+        }
+
+        res.json({
+            familyName: gameState.neighborhood.familyName || 'Unnamed Family',
+            familyBio: gameState.neighborhood.familyBio || '',
+            babies: (gameState.babies || []).map(b => ({
+                name: b.name, stage: b.stage, genetics: b.genetics,
+                sleeping: b.sleeping, hunger: b.hunger, happiness: b.happiness,
+                energy: b.energy, love: b.love, wearables: b.wearables || {},
+                position: b.position
+            })),
+            garden: { quality: gameState.garden?.quality || 0, carrots: gameState.garden?.carrots || 0 },
+            gems: gameState.gems || 0,
+            dayNightCycle: gameState.dayNightCycle,
+            parentWearables: gameState.parentWearables || {},
+            visitorCount: gameState.neighborhood.visitorCount || 0,
+            gameStartTime: gameState.gameStartTime
+        });
+    } catch (error) {
+        console.error('Neighborhood visit error:', error);
+        res.status(500).json({ error: 'Failed to load family' });
+    }
 });
 
 // Error handling middleware

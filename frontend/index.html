@@ -453,7 +453,123 @@
             position: relative;
             overflow: hidden;
         }
-        
+
+        /* Right Sidebar */
+        .right-sidebar {
+            width: 260px;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            overflow-y: auto;
+            overflow-x: hidden;
+            border-left: 2px solid rgba(255, 105, 180, 0.2);
+            box-shadow: -3px 0 15px rgba(0,0,0,0.06);
+        }
+        .sidebar-currencies {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            padding: 10px 12px 6px;
+            background: linear-gradient(135deg, #fff5f9, #fef0f5);
+        }
+        .currency-badge {
+            padding: 5px 14px;
+            border-radius: 14px;
+            font-weight: bold;
+            font-size: 0.95em;
+        }
+        .carrot-badge {
+            background: linear-gradient(135deg, #ff9800, #f57c00);
+            color: #fff;
+        }
+        .gem-badge {
+            background: linear-gradient(135deg, #9b59b6, #8e44ad);
+            color: #fff;
+        }
+        .sidebar-section {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255, 182, 217, 0.25);
+        }
+        .sidebar-section-title {
+            font-weight: bold;
+            font-size: 0.9em;
+            color: var(--secondary-pink);
+            margin-bottom: 6px;
+        }
+        .sidebar-actions {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+        .sidebar-actions .action-btn {
+            min-width: unset;
+            padding: 10px 8px;
+            font-size: 0.95em;
+            border-radius: 12px;
+        }
+        .sidebar-extras {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 5px;
+        }
+        .sidebar-extras .action-btn {
+            min-width: unset;
+            padding: 9px 6px;
+            font-size: 0.85em;
+            border-radius: 12px;
+        }
+        .sidebar-garden-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sidebar-garden-row .garden-plot {
+            width: 55px;
+            height: 55px;
+            flex-shrink: 0;
+        }
+        .sidebar-garden-row .garden-info {
+            font-size: 0.82em;
+            line-height: 1.5;
+        }
+        .harvest-count {
+            color: #888;
+            font-size: 0.9em;
+        }
+        /* Tasks */
+        .sidebar-tasks {
+            flex: 1;
+            min-height: 0;
+        }
+        .task-list {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+        .task-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 8px;
+            background: rgba(255, 240, 248, 0.6);
+            border-radius: 8px;
+            font-size: 0.8em;
+            transition: all 0.3s;
+        }
+        .task-item.completed {
+            opacity: 0.5;
+            text-decoration: line-through;
+        }
+        .task-icon { font-size: 1.1em; }
+        .task-text { flex: 1; }
+        .task-reward {
+            font-weight: bold;
+            color: #9b59b6;
+            font-size: 0.9em;
+        }
+
         /* Nest Area */
         .nest-area {
             flex: 1;
@@ -478,17 +594,7 @@
         
         /* Status Bars — left column */
         .status-panel {
-            position: absolute;
-            left: 0;
-            top: 50px;
-            width: 200px;
-            z-index: 50;
-            background: rgba(255, 255, 255, 0.92);
-            padding: 14px 12px;
-            border-radius: 0 16px 16px 0;
-            box-shadow: 2px 3px 15px var(--shadow);
-            backdrop-filter: blur(5px);
-            border: 1px solid rgba(255, 105, 180, 0.2);
+            display: none;
         }
 
         .baby-status {
@@ -573,14 +679,7 @@
         
         /* Garden Sidebar */
         .garden-panel {
-            width: 120px;
-            background: linear-gradient(135deg, var(--gentle-green), var(--sunset-orange));
-            padding: 15px 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 15px;
-            box-shadow: -5px 0 20px var(--shadow);
+            display: none;
         }
         
         .garden-title {
@@ -636,14 +735,7 @@
         
         /* Action Buttons */
         .action-panel {
-            background: linear-gradient(135deg, var(--soft-white), var(--warm-cream));
-            padding: 15px;
-            display: flex;
-            justify-content: center;
-            gap: 10px;
-            flex-wrap: wrap;
-            box-shadow: 0 -5px 20px var(--shadow);
-            border-top: 2px solid var(--primary-pink);
+            display: none;
         }
         
         .action-btn {
@@ -808,33 +900,30 @@
             .game-area {
                 flex-direction: column;
             }
-            
-            .garden-panel {
+
+            .right-sidebar {
                 width: 100%;
-                height: 120px;
+                max-height: 40vh;
+                border-left: none;
+                border-top: 2px solid rgba(255, 105, 180, 0.2);
                 flex-direction: row;
-                order: 2;
+                flex-wrap: wrap;
             }
-            
+            .right-sidebar .sidebar-section {
+                flex: 1;
+                min-width: 140px;
+            }
+            .sidebar-tasks { display: none; }
+
             .nest-area {
                 order: 1;
                 flex: 1;
             }
-            
-            .status-panel {
-                margin: 5px;
-                padding: 10px;
-            }
-            
-            .action-panel {
-                padding: 10px;
-                gap: 8px;
-            }
-            
+
             .action-btn {
-                padding: 10px 15px;
-                font-size: 0.9em;
-                min-width: 85px;
+                padding: 8px 10px;
+                font-size: 0.85em;
+                min-width: 70px;
             }
             
             h1 {
@@ -1287,6 +1376,328 @@
                 max-width: calc(100vw - 40px);
             }
         }
+
+        /* ===== Whispered Wishes (V4) ===== */
+        .wish-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(20, 10, 40, 0.65);
+            z-index: 3200;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.35s ease-out, visibility 0.35s ease-out;
+            backdrop-filter: blur(4px);
+        }
+        .wish-overlay.show { opacity: 1; visibility: visible; }
+
+        .wish-modal {
+            background: linear-gradient(135deg, var(--soft-white), var(--warm-cream));
+            border-radius: 22px;
+            padding: 22px 22px 18px;
+            border: 3px solid var(--primary-purple);
+            box-shadow: 0 20px 60px rgba(60, 30, 120, 0.35);
+            max-width: 92vw;
+            width: 420px;
+            max-height: 85vh;
+            overflow-y: auto;
+            transform: scale(0.9);
+            transition: transform 0.3s ease-out;
+        }
+        .wish-overlay.show .wish-modal { transform: scale(1); }
+
+        .wish-modal h2 {
+            color: var(--primary-purple);
+            margin: 0 0 10px;
+            font-size: 1.35em;
+            text-align: center;
+        }
+        .wish-modal p.wish-sub {
+            text-align: center;
+            font-size: 0.95em;
+            color: var(--text-dark);
+            margin-bottom: 14px;
+        }
+
+        .wish-spot-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+            gap: 8px;
+            margin-bottom: 14px;
+        }
+        .wish-spot-option {
+            background: rgba(147, 112, 219, 0.08);
+            border: 2px solid transparent;
+            border-radius: 14px;
+            padding: 10px 6px;
+            text-align: center;
+            cursor: pointer;
+            font-size: 0.9em;
+            font-family: inherit;
+            color: var(--text-dark);
+            transition: all 0.2s ease;
+        }
+        .wish-spot-option:hover {
+            background: rgba(147, 112, 219, 0.18);
+            transform: translateY(-2px);
+        }
+        .wish-spot-option.selected {
+            border-color: var(--primary-purple);
+            background: rgba(147, 112, 219, 0.2);
+            box-shadow: 0 0 12px rgba(147, 112, 219, 0.4);
+        }
+        .wish-spot-option .wish-spot-icon {
+            font-size: 1.6em;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .wish-trigger-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            justify-content: center;
+            margin-bottom: 12px;
+        }
+        .wish-trigger-option {
+            background: rgba(255, 179, 217, 0.15);
+            border: 2px solid transparent;
+            border-radius: 12px;
+            padding: 6px 12px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.85em;
+            color: var(--text-dark);
+            transition: all 0.2s ease;
+        }
+        .wish-trigger-option.selected {
+            background: rgba(255, 105, 180, 0.2);
+            border-color: var(--secondary-pink);
+        }
+
+        .wish-textarea {
+            width: 100%;
+            min-height: 70px;
+            padding: 10px 12px;
+            border: 2px solid var(--primary-pink);
+            border-radius: 14px;
+            font-family: inherit;
+            font-size: 1em;
+            resize: vertical;
+            box-sizing: border-box;
+            background: rgba(255, 255, 255, 0.85);
+            color: var(--text-dark);
+        }
+        .wish-textarea:focus {
+            outline: none;
+            border-color: var(--primary-purple);
+            box-shadow: 0 0 10px rgba(147, 112, 219, 0.3);
+        }
+        .wish-char-count {
+            text-align: right;
+            font-size: 0.8em;
+            color: #888;
+            margin-top: 2px;
+        }
+
+        .wish-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 14px;
+        }
+        .wish-btn {
+            background: linear-gradient(135deg, var(--primary-purple), #7b1fa2);
+            color: white;
+            border: none;
+            border-radius: 14px;
+            padding: 9px 18px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 0.95em;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .wish-btn:hover { transform: translateY(-2px); box-shadow: 0 6px 14px rgba(147, 112, 219, 0.4); }
+        .wish-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+        .wish-btn.wish-btn-secondary {
+            background: linear-gradient(135deg, #bbb, #888);
+        }
+        .wish-btn.wish-btn-danger {
+            background: linear-gradient(135deg, var(--heart-red), #c62828);
+        }
+
+        .wish-pending {
+            background: rgba(147, 112, 219, 0.08);
+            border-radius: 12px;
+            padding: 10px;
+            margin-top: 8px;
+            font-size: 0.9em;
+            color: var(--text-dark);
+        }
+        .wish-pending-text { font-style: italic; margin-bottom: 6px; }
+
+        /* Discovery parchment */
+        .wish-parchment {
+            background: linear-gradient(135deg, #fff8e1, #f3e5ab);
+            border: 3px solid #c9a35b;
+            border-radius: 18px;
+            padding: 22px;
+            font-family: 'Comic Sans MS', cursive;
+            color: #5b4329;
+            box-shadow: 0 10px 30px rgba(120, 80, 30, 0.4), inset 0 0 30px rgba(200, 160, 80, 0.18);
+            position: relative;
+        }
+        .wish-parchment::before {
+            content: '💌';
+            position: absolute;
+            top: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 2em;
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.25));
+        }
+        .wish-parchment-text {
+            font-size: 1.15em;
+            line-height: 1.5;
+            white-space: pre-wrap;
+            word-break: break-word;
+            text-align: center;
+            margin: 10px 0 14px;
+        }
+        .wish-parchment-from {
+            text-align: right;
+            font-size: 0.9em;
+            color: #7b5a32;
+            font-style: italic;
+        }
+
+        /* Wish Jar */
+        .wish-jar-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle at center, rgba(60, 30, 100, 0.85), rgba(15, 5, 30, 0.95));
+            z-index: 3400;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: opacity 0.4s ease-out, visibility 0.4s ease-out;
+        }
+        .wish-jar-overlay.show { opacity: 1; visibility: visible; }
+        .wish-jar-icon {
+            font-size: 7em;
+            margin-bottom: 12px;
+            filter: drop-shadow(0 0 30px rgba(255, 215, 100, 0.85));
+            animation: jarFloat 2.4s ease-in-out infinite;
+        }
+        @keyframes jarFloat {
+            0%, 100% { transform: translateY(0) scale(1); filter: drop-shadow(0 0 30px rgba(255,215,100,0.85)); }
+            50% { transform: translateY(-10px) scale(1.05); filter: drop-shadow(0 0 50px rgba(255,235,150,1)); }
+        }
+        .wish-jar-title {
+            color: #ffe69a;
+            font-size: 1.6em;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+            margin-bottom: 6px;
+            text-align: center;
+        }
+        .wish-jar-sub {
+            color: #fff;
+            font-size: 1em;
+            margin-bottom: 18px;
+            text-align: center;
+            opacity: 0.9;
+        }
+        .wish-jar-countdown {
+            color: #ffd966;
+            font-size: 2em;
+            font-weight: bold;
+            margin: 6px 0 14px;
+            min-height: 1.2em;
+            text-shadow: 0 0 12px rgba(255, 200, 80, 0.7);
+        }
+        .wish-jar-taps {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 16px;
+        }
+        .wish-jar-tap-zone {
+            width: 130px;
+            height: 130px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: 3px dashed rgba(255,255,255,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            color: #fff;
+            font-size: 0.9em;
+            transition: all 0.2s ease;
+        }
+        .wish-jar-tap-zone.tapped {
+            background: rgba(255, 215, 100, 0.35);
+            border-style: solid;
+            border-color: #ffd966;
+            box-shadow: 0 0 30px rgba(255, 215, 100, 0.7);
+            transform: scale(1.07);
+        }
+        .wish-jar-tap-btn {
+            background: linear-gradient(135deg, #ffd966, #ff9800);
+            color: #4a2c00;
+            border: none;
+            border-radius: 40px;
+            padding: 14px 34px;
+            font-family: inherit;
+            font-weight: bold;
+            font-size: 1.2em;
+            cursor: pointer;
+            box-shadow: 0 6px 18px rgba(255, 152, 0, 0.55);
+            transition: all 0.2s ease;
+        }
+        .wish-jar-tap-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 10px 22px rgba(255,152,0,0.7); }
+        .wish-jar-tap-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .wish-jar-close {
+            margin-top: 10px;
+            background: transparent;
+            color: #fff;
+            border: 1px solid rgba(255,255,255,0.4);
+            border-radius: 18px;
+            padding: 6px 16px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 0.85em;
+        }
+
+        /* Sidebar: Wish button */
+        .action-btn.wish {
+            background: linear-gradient(135deg, #9370db, #6a1b9a);
+            color: #fff;
+        }
+        .action-btn.wish .wish-badge {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.25);
+            border-radius: 10px;
+            padding: 0 6px;
+            margin-left: 4px;
+            font-size: 0.85em;
+        }
+
+        @media (max-width: 768px) {
+            .wish-modal { margin: 14px; max-width: calc(100vw - 28px); }
+            .wish-jar-tap-zone { width: 110px; height: 110px; }
+        }
     </style>
 </head>
 <body>
@@ -1378,89 +1789,194 @@
                 <div class="carrot-count">
                     🥕 <span id="carrotCount">8</span>
                 </div>
+                <div class="gem-count" style="margin-left:10px;background:linear-gradient(135deg,#9b59b6,#8e44ad);padding:4px 10px;border-radius:12px;font-size:0.9em;color:#fff;font-weight:bold;">
+                    💎 <span id="gemCount">0</span>
+                </div>
             </div>
         </div>
 
         <!-- Main Game Area -->
         <div class="game-area">
-            <!-- Central Nest Area -->
+            <!-- Central Nest Area — Canvas -->
             <div class="nest-area">
-                <!-- 2D Canvas for Bunny Graphics -->
                 <canvas id="gameCanvas" width="800" height="600"></canvas>
-                
-                <!-- Status Panel for Selected Baby -->
-                <div class="status-panel">
+            </div>
+
+            <!-- Right Sidebar -->
+            <div class="right-sidebar">
+                <!-- Currency Bar -->
+                <div class="sidebar-currencies">
+                    <div class="currency-badge carrot-badge">🥕 <span id="sidebarCarrots">0</span></div>
+                    <div class="currency-badge gem-badge">💎 <span id="sidebarGems">0</span></div>
+                    <div class="currency-badge" id="sidebarWishesBadge" style="background:linear-gradient(135deg,#9370db,#6a1b9a);color:#fff;display:none;" title="Pending wishes">✨ <span id="sidebarWishes">0</span></div>
+                </div>
+
+                <!-- Baby Status -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title" id="babyName">Baby Bunny</div>
                     <div class="baby-status">
-                        <div class="baby-name" id="babyName">Baby Bunny</div>
-                        
                         <div class="status-bar status-hunger">
                             <div class="status-label">🍎</div>
-                            <div class="status-fill">
-                                <div class="status-progress" id="hungerBar"></div>
-                            </div>
+                            <div class="status-fill"><div class="status-progress" id="hungerBar"></div></div>
                             <div class="status-value" id="hungerValue">85%</div>
                         </div>
-
                         <div class="status-bar status-happiness">
                             <div class="status-label">😊</div>
-                            <div class="status-fill">
-                                <div class="status-progress" id="happinessBar"></div>
-                            </div>
+                            <div class="status-fill"><div class="status-progress" id="happinessBar"></div></div>
                             <div class="status-value" id="happinessValue">85%</div>
                         </div>
-
                         <div class="status-bar status-energy">
                             <div class="status-label">⚡</div>
-                            <div class="status-fill">
-                                <div class="status-progress" id="energyBar"></div>
-                            </div>
+                            <div class="status-fill"><div class="status-progress" id="energyBar"></div></div>
                             <div class="status-value" id="energyValue">85%</div>
                         </div>
-
                         <div class="status-bar status-cleanliness">
                             <div class="status-label">🧼</div>
-                            <div class="status-fill">
-                                <div class="status-progress" id="cleanlinessBar"></div>
-                            </div>
+                            <div class="status-fill"><div class="status-progress" id="cleanlinessBar"></div></div>
                             <div class="status-value" id="cleanlinessValue">85%</div>
                         </div>
-
                         <div class="status-bar status-love">
                             <div class="status-label">💖</div>
-                            <div class="status-fill">
-                                <div class="status-progress" id="loveBar"></div>
-                            </div>
+                            <div class="status-fill"><div class="status-progress" id="loveBar"></div></div>
                             <div class="status-value" id="loveValue">5%</div>
                         </div>
                     </div>
                 </div>
-            </div>
 
-            <!-- Garden Sidebar -->
-            <div class="garden-panel">
-                <div class="garden-title">🌱 Garden</div>
-                <div class="garden-plot" id="gardenPlot">
-                    <div class="carrot-sprite">🥕</div>
+                <!-- Actions -->
+                <div class="sidebar-section">
+                    <div class="sidebar-section-title">Actions</div>
+                    <div class="sidebar-actions">
+                        <button class="action-btn feed" id="feedBtn">🥕 Feed</button>
+                        <button class="action-btn play" id="playBtn">🎮 Play</button>
+                        <button class="action-btn sleep" id="sleepBtn">💤 Sleep</button>
+                        <button class="action-btn clean" id="cleanBtn">🧹 Clean</button>
+                        <button class="action-btn pet" id="petBtn">❤️ Pet</button>
+                        <button class="action-btn cave" id="caveBtn" style="display:none;">🏔️ Cave</button>
+                    </div>
                 </div>
-                <div class="garden-info">
-                    <div>Quality: <span id="gardenQuality">50</span>%</div>
-                    <div class="harvest-timer" id="harvestTimer">Ready!</div>
+
+                <!-- Garden -->
+                <div class="sidebar-section sidebar-garden">
+                    <div class="sidebar-section-title">🌱 Garden</div>
+                    <div class="sidebar-garden-row">
+                        <div class="garden-plot" id="gardenPlot"><div class="carrot-sprite">🥕</div></div>
+                        <div class="garden-info">
+                            <div>Quality: <span id="gardenQuality">50</span>%</div>
+                            <div class="harvest-timer" id="harvestTimer">Ready!</div>
+                            <div class="harvest-count">Harvests: <span id="harvestCountDisplay">0</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Extras -->
+                <div class="sidebar-section">
+                    <div class="sidebar-extras">
+                        <button class="action-btn shop" id="shopBtn">🛒 Shop</button>
+                        <button class="action-btn" id="closetBtn" style="background:linear-gradient(135deg, #8d6e63, #6d4c41);">👗 Closet</button>
+                        <button class="action-btn" id="minigameBtn" style="background:linear-gradient(135deg, #ff6f00, #e65100);">🎮 Games</button>
+                        <button class="action-btn" id="neighborhoodBtn" style="background:linear-gradient(135deg, #66bb6a, #43a047);">🏘 World</button>
+                        <button class="action-btn wish" id="wishBtn">✨ Wish<span class="wish-badge" id="wishBtnBadge" style="display:none;">0</span></button>
+                    </div>
+                </div>
+
+                <!-- Tasks / Milestones -->
+                <div class="sidebar-section sidebar-tasks">
+                    <div class="sidebar-section-title">Milestones</div>
+                    <div id="taskList" class="task-list">
+                        <div class="task-item" data-milestone="10">
+                            <span class="task-icon">🌱</span>
+                            <span class="task-text">Harvest 10 times</span>
+                            <span class="task-reward">1💎</span>
+                        </div>
+                        <div class="task-item" data-milestone="25">
+                            <span class="task-icon">🌿</span>
+                            <span class="task-text">Harvest 25 times</span>
+                            <span class="task-reward">2💎</span>
+                        </div>
+                        <div class="task-item" data-milestone="50">
+                            <span class="task-icon">🌾</span>
+                            <span class="task-text">Harvest 50 times</span>
+                            <span class="task-reward">5💎</span>
+                        </div>
+                        <div class="task-item" data-milestone="100">
+                            <span class="task-icon">👑</span>
+                            <span class="task-text">Harvest 100 times</span>
+                            <span class="task-reward">10💎</span>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Action Buttons -->
-        <div class="action-panel">
-            <button class="action-btn feed" id="feedBtn">🥕 Feed</button>
-            <button class="action-btn play" id="playBtn">🎮 Play</button>
-            <button class="action-btn sleep" id="sleepBtn">💤 Sleep</button>
-            <button class="action-btn clean" id="cleanBtn">🧹 Clean</button>
-            <button class="action-btn pet" id="petBtn">❤️ Pet</button>
-            <button class="action-btn cave" id="caveBtn" style="display:none;">🏔️ Cave</button>
-            <button class="action-btn shop" id="shopBtn">🛒 Shop</button>
-            <button class="action-btn" id="basketBtn" style="background:linear-gradient(135deg, #8d6e63, #6d4c41);">🧺 Basket</button>
-            <button class="action-btn" id="minigameBtn" style="background:linear-gradient(135deg, #ff6f00, #e65100);">🎮 Mini Games</button>
+        <!-- Hidden legacy elements for JS compatibility -->
+        <div style="display:none;">
+            <span id="carrotCount">8</span>
+            <span id="gemCount">0</span>
+            <div class="status-panel"></div>
+            <div class="garden-panel"></div>
+            <div class="action-panel"></div>
         </div>
+    </div>
+
+    <!-- ===== Whispered Wishes Modals ===== -->
+    <div id="wishHideOverlay" class="wish-overlay" role="dialog" aria-modal="true" aria-labelledby="wishHideTitle">
+        <div class="wish-modal">
+            <h2 id="wishHideTitle">✨ Hide a Wish</h2>
+            <p class="wish-sub">Whisper a secret note behind a spot in the nest. Your partner may stumble upon it.</p>
+
+            <div id="wishActiveRow" class="wish-pending" style="display:none;">
+                <div class="wish-pending-text" id="wishActivePreview">You already have a wish hidden.</div>
+                <button class="wish-btn wish-btn-danger" id="wishCancelBtn" type="button">Cancel my wish</button>
+            </div>
+
+            <div style="margin:10px 0 6px;font-weight:bold;color:var(--primary-purple);">1. Choose a hiding spot</div>
+            <div class="wish-spot-grid" id="wishSpotGrid"></div>
+
+            <div style="margin:4px 0 6px;font-weight:bold;color:var(--primary-purple);">2. How your partner could find it</div>
+            <div class="wish-trigger-row" id="wishTriggerRow"></div>
+
+            <div style="margin:4px 0 6px;font-weight:bold;color:var(--primary-purple);">3. Your whispered wish</div>
+            <textarea id="wishTextarea" class="wish-textarea" maxlength="140" placeholder="A little wish for your partner..."></textarea>
+            <div class="wish-char-count"><span id="wishCharCount">0</span>/140</div>
+
+            <div class="wish-actions">
+                <button class="wish-btn wish-btn-secondary" id="wishHideCloseBtn" type="button">Close</button>
+                <button class="wish-btn" id="wishSubmitBtn" type="button">Hide it ✨</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="wishRevealOverlay" class="wish-overlay" role="dialog" aria-modal="true" aria-labelledby="wishRevealTitle">
+        <div class="wish-modal" style="border-color:#c9a35b;">
+            <h2 id="wishRevealTitle" style="color:#7b5a32;">A Whisper Found</h2>
+            <div class="wish-parchment">
+                <div class="wish-parchment-text" id="wishRevealText"></div>
+                <div class="wish-parchment-from" id="wishRevealFrom"></div>
+            </div>
+            <div class="wish-actions" style="justify-content:center;">
+                <button class="wish-btn" id="wishRevealThanksBtn" type="button">Thank them ❤️</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="wishJarOverlay" class="wish-jar-overlay" role="dialog" aria-modal="true" aria-labelledby="wishJarTitle">
+        <div class="wish-jar-icon">🫙</div>
+        <div class="wish-jar-title" id="wishJarTitle">The Wish Jar is glowing!</div>
+        <div class="wish-jar-sub">Tap together within 3 seconds to open it.</div>
+        <div class="wish-jar-countdown" id="wishJarCountdown">&nbsp;</div>
+        <div class="wish-jar-taps">
+            <div class="wish-jar-tap-zone" id="wishJarZoneMe">
+                <div style="font-size:1.8em;">👆</div>
+                <div>You</div>
+            </div>
+            <div class="wish-jar-tap-zone" id="wishJarZonePartner">
+                <div style="font-size:1.8em;">👆</div>
+                <div>Partner</div>
+            </div>
+        </div>
+        <button class="wish-jar-tap-btn" id="wishJarTapBtn" type="button">Tap the Jar ✨</button>
+        <button class="wish-jar-close" id="wishJarCloseBtn" type="button">Later</button>
     </div>
 
     <!-- Socket.io from server -->

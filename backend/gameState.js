@@ -274,6 +274,41 @@ class GameStateManager {
             console.log('Auto-save stopped');
         }
     }
+
+    async listPublicRooms() {
+        try {
+            const files = await fs.readdir(SAVE_DIR);
+            const roomFiles = files.filter(f => f.startsWith('room_') && f.endsWith('.json'));
+            const publicRooms = [];
+
+            for (const file of roomFiles) {
+                try {
+                    const raw = await fs.readFile(path.join(SAVE_DIR, file), 'utf8');
+                    const data = JSON.parse(raw);
+                    const gs = data.gameState;
+                    if (gs?.neighborhood?.isPublic) {
+                        publicRooms.push({
+                            roomCode: data.roomCode || file.replace('room_', '').replace('.json', ''),
+                            familyName: gs.neighborhood.familyName || 'Unnamed Family',
+                            familyBio: gs.neighborhood.familyBio || '',
+                            babyCount: gs.babies?.length || 0,
+                            babyNames: (gs.babies || []).map(b => b.name),
+                            babyStages: (gs.babies || []).map(b => b.stage),
+                            gardenQuality: gs.garden?.quality || 0,
+                            gems: gs.gems || 0,
+                            daysSinceCreation: Math.floor((Date.now() - (gs.gameStartTime || Date.now())) / 86400000),
+                            visitorCount: gs.neighborhood.visitorCount || 0,
+                            lastSaved: data.lastSaved || 0
+                        });
+                    }
+                } catch (e) { /* skip corrupt files */ }
+            }
+            return publicRooms.sort((a, b) => (b.lastSaved || 0) - (a.lastSaved || 0));
+        } catch (error) {
+            console.error('Failed to list public rooms:', error);
+            return [];
+        }
+    }
 }
 
 module.exports = GameStateManager;
