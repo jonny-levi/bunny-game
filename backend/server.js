@@ -1827,11 +1827,17 @@ class GameRoom {
         }
         
         if (timeSinceLastEgg < requiredCooldown) return;
-        
+
+        // Cooldown elapsed — clear stale trigger flags so a baby that has
+        // already triggered once can trigger again on the next cycle.
+        // Without this, the first eligible baby blocked all future spawns
+        // permanently until a brand-new baby grew up.
+        this.gameState.babies.forEach(b => { b.triggeredEggSpawn = false });
+
         // Conditions met! Create a discoverable egg
         const newEgg = this.createNewEgg();
-        
-        // Mark the baby that triggered this
+
+        // Mark the baby that triggered this (cleared on next cooldown elapse)
         eligibleBabies[0].triggeredEggSpawn = true;
         
         // Add to discovered eggs (waiting for carrot payment)
