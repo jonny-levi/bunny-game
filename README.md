@@ -107,6 +107,8 @@ Bunny Family is designed mobile-first for couples to play together:
 
 Design source of truth: [`docs/FIGMA-DESIGN-DIRECTION.md`](docs/FIGMA-DESIGN-DIRECTION.md)
 
+Implementation-to-Figma bridge: [`docs/FIGMA-COMPONENT-MAP.md`](docs/FIGMA-COMPONENT-MAP.md)
+
 **Art Style**: Cute programmatic graphics with a warm, pastel color palette
 - **Bunnies**: Round bodies with triangle ears and expressive eyes
 - **Colors**: Pink, purple, and pastel themes for a loving atmosphere

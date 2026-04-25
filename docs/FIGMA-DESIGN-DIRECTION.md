@@ -496,6 +496,7 @@ A designer can now turn this into a live Figma file by:
 3. composing the key frames from Section 8
 4. prototyping tap/overlay interactions for lobby, shop, basket, and celebrations
 5. using `FIGMA-HANDOFF-CHECKLIST.md` as the execution checklist during file build and handoff
+6. using `FIGMA-COMPONENT-MAP.md` to map live frontend surfaces and states into Figma components without drift
 
 ---
 
