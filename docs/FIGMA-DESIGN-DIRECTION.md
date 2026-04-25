@@ -495,6 +495,7 @@ A designer can now turn this into a live Figma file by:
 2. building the component inventory from Section 14
 3. composing the key frames from Section 8
 4. prototyping tap/overlay interactions for lobby, shop, basket, and celebrations
+5. using `FIGMA-HANDOFF-CHECKLIST.md` as the execution checklist during file build and handoff
 
 ---
 
