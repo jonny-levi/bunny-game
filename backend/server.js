@@ -206,7 +206,7 @@ const GAME_CONFIG = {
     },
     // NEW: Egg spawning system configuration
     EGG_SPAWNING: {
-        triggerStage: 'baby', // When a baby reaches this stage, new egg can appear
+        triggerStage: 'newborn', // Once the first egg hatches, a new egg can appear after the cooldown
         cooldown: 300000, // 5 minutes between new eggs
         coupleCooldownMultiplier: 0.5, // Halved cooldown when both parents online
         cost: 10, // Carrot cost to "discover" new egg
@@ -1805,11 +1805,15 @@ class GameRoom {
         // Check if we've reached the maximum baby limit
         if (this.gameState.babies.length >= config.maxBabies) return;
         
-        // Check if any baby has reached the trigger stage
-        const eligibleBabies = this.gameState.babies.filter(baby => 
-            baby.stage === config.triggerStage && 
-            !baby.triggeredEggSpawn // Prevent same baby triggering multiple eggs
-        );
+        // Check if any bunny has matured enough to unlock another egg.
+        // Some legacy saves can skip or rename intermediate stages, so treat any
+        // non-egg bunny at or beyond the trigger stage as eligible.
+        const stageOrder = GAME_CONFIG.GROWTH_SYSTEM?.stages || ['egg', 'newborn', 'baby', 'toddler', 'child'];
+        const triggerStageIndex = Math.max(0, stageOrder.indexOf(config.triggerStage));
+        const eligibleBabies = this.gameState.babies.filter(baby => {
+            const babyStageIndex = stageOrder.indexOf(baby.stage);
+            return babyStageIndex >= triggerStageIndex && !baby.triggeredEggSpawn;
+        });
         
         if (eligibleBabies.length === 0) return;
         
@@ -1898,7 +1902,7 @@ class GameRoom {
         const config = GAME_CONFIG.EGG_SPAWNING;
         
         // Check if player has enough carrots
-        if (this.gameState.carrots < config.cost) {
+        if (this.gameState.garden.carrots < config.cost) {
             return { success: false, message: `Need ${config.cost} carrots to discover the egg!` };
         }
         
@@ -1911,7 +1915,7 @@ class GameRoom {
         const egg = this.gameState.eggSpawning.discoveredEggs[eggIndex];
         
         // Pay the cost
-        this.gameState.carrots -= config.cost;
+        this.gameState.garden.carrots -= config.cost;
         
         // Create the actual baby egg
         const newBaby = {
@@ -1949,7 +1953,7 @@ class GameRoom {
             baby: newBaby,
             eggType: egg.type,
             cost: config.cost,
-            remainingCarrots: this.gameState.carrots
+            remainingCarrots: this.gameState.garden.carrots
         });
         
         return { success: true, baby: newBaby };
@@ -2342,6 +2346,8 @@ class GameRoom {
             }
 
             // Update position
+            baby.position.x = x;
+            baby.position.y = y;
             baby.targetPosition.x = x;
             baby.targetPosition.y = y;
             baby.lastMovedBy = playerId;
