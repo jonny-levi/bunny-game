@@ -274,17 +274,9 @@ function resizeCanvas() {
     backgroundNeedsRedraw = true;
     dirtyBackground = true;
     
-    // Reset bunny positions to default layout
+    // Re-sync bunny positions after resize without discarding persisted positions
     if (gameState && gameState.babies) {
-        gameState.babies.forEach((baby, index) => {
-            const bunnyId = baby.id;
-            bunnyPositions[bunnyId] = {
-                x: rect.width * (0.4 + (index * 0.2)),
-                y: rect.height * 0.7,
-                targetX: rect.width * (0.4 + (index * 0.2)),
-                targetY: rect.height * 0.7
-            };
-        });
+        syncBunnyPositionsFromGameState();
     }
     
     console.log('📐 Canvas resized to:', canvas.width, 'x', canvas.height, 'CSS:', canvas.style.width, 'x', canvas.style.height);
@@ -485,6 +477,7 @@ function onPartnerConnected() {
 function onGameStateUpdate(newGameState) {
     console.log('🎮 Game state update received:', newGameState);
     gameState = newGameState;
+    syncBunnyPositionsFromGameState();
     
     // Sync inventory from server game state
     if (newGameState.shop && newGameState.shop.inventory) {
@@ -680,6 +673,13 @@ function onBunnyMoved(data) {
         if (!baby.position) baby.position = { x: 400, y: 300 };
         baby.position.x = data.x;
         baby.position.y = data.y;
+        baby.targetPosition = { x: data.x, y: data.y };
+
+        const localPos = bunnyPositions[data.babyId] || getBunnyPosition(data.babyId);
+        localPos.x = data.x;
+        localPos.y = data.y;
+        localPos.targetX = data.x;
+        localPos.targetY = data.y;
         
         // Show visual feedback that partner moved the bunny
         if (data.movedBy !== myPlayerId) {
@@ -1411,6 +1411,12 @@ function updateDrag(x, y) {
     bunnyPositions[bunnyId].targetY = boundedY;
     bunnyPositions[bunnyId].x = lerp(bunnyPositions[bunnyId].x, boundedX, lerpFactor);
     bunnyPositions[bunnyId].y = lerp(bunnyPositions[bunnyId].y, boundedY, lerpFactor);
+
+    const baby = gameState?.babies?.find(b => b.id === bunnyId);
+    if (baby) {
+        baby.position = { x: bunnyPositions[bunnyId].x, y: bunnyPositions[bunnyId].y };
+        baby.targetPosition = { x: boundedX, y: boundedY };
+    }
 }
 
 function endDrag() {
@@ -1438,7 +1444,26 @@ function endDrag() {
     
     // Create drop effect
     if (bunnyPositions[bunnyId]) {
-        createDropEffect(bunnyPositions[bunnyId].x, bunnyPositions[bunnyId].y);
+        const finalX = bunnyPositions[bunnyId].targetX ?? bunnyPositions[bunnyId].x;
+        const finalY = bunnyPositions[bunnyId].targetY ?? bunnyPositions[bunnyId].y;
+        bunnyPositions[bunnyId].x = finalX;
+        bunnyPositions[bunnyId].y = finalY;
+        createDropEffect(finalX, finalY);
+
+        const baby = gameState?.babies?.find(b => b.id === bunnyId);
+        if (baby) {
+            baby.position = { x: finalX, y: finalY };
+            baby.targetPosition = { x: finalX, y: finalY };
+        }
+
+        if (dragDist >= 10 && socket && socket.connected) {
+            socket.emit('move_bunny', {
+                babyId: bunnyId,
+                x: finalX,
+                y: finalY,
+                timestamp: Date.now()
+            });
+        }
     }
     
     // Check if bunny was dropped on a special interaction area
@@ -1472,17 +1497,53 @@ function checkDropInteractions() {
 // ===== BUNNY POSITION MANAGEMENT =====
 function getBunnyPosition(bunnyId) {
     if (!bunnyPositions[bunnyId]) {
-        // Initialize bunny position based on default layout
-        const babyIndex = gameState.babies.findIndex(b => b.id === bunnyId);
+        const baby = gameState?.babies?.find(b => b.id === bunnyId);
+        const babyIndex = gameState?.babies?.findIndex(b => b.id === bunnyId) ?? 0;
         const rect = canvas.getBoundingClientRect();
+        const fallbackX = rect.width * (0.4 + (babyIndex * 0.2));
+        const fallbackY = rect.height * 0.7;
+        const sourceX = baby?.targetPosition?.x ?? baby?.position?.x ?? fallbackX;
+        const sourceY = baby?.targetPosition?.y ?? baby?.position?.y ?? fallbackY;
         bunnyPositions[bunnyId] = {
-            x: rect.width * (0.4 + (babyIndex * 0.2)),
-            y: rect.height * 0.7,
-            targetX: rect.width * (0.4 + (babyIndex * 0.2)),
-            targetY: rect.height * 0.7
+            x: sourceX,
+            y: sourceY,
+            targetX: sourceX,
+            targetY: sourceY
         };
     }
     return bunnyPositions[bunnyId];
+}
+
+function syncBunnyPositionsFromGameState() {
+    if (!gameState?.babies || !canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+
+    gameState.babies.forEach((baby, index) => {
+        const fallbackX = rect.width * (0.4 + (index * 0.2));
+        const fallbackY = rect.height * 0.7;
+        const sourceX = baby?.targetPosition?.x ?? baby?.position?.x ?? fallbackX;
+        const sourceY = baby?.targetPosition?.y ?? baby?.position?.y ?? fallbackY;
+
+        if (!bunnyPositions[baby.id]) {
+            bunnyPositions[baby.id] = {
+                x: sourceX,
+                y: sourceY,
+                targetX: sourceX,
+                targetY: sourceY
+            };
+            return;
+        }
+
+        if (dragState.isDragging && dragState.targetBunny?.id === baby.id) {
+            return;
+        }
+
+        bunnyPositions[baby.id].x = sourceX;
+        bunnyPositions[baby.id].y = sourceY;
+        bunnyPositions[baby.id].targetX = sourceX;
+        bunnyPositions[baby.id].targetY = sourceY;
+    });
 }
 
 function updateBunnyPositions(deltaTime) {
