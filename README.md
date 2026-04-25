@@ -61,6 +61,12 @@ Each baby bunny has five essential needs that both players must manage:
 - **Mobile-first**: Touch-optimized responsive design
 - **Graphics**: Programmatically drawn cute sprites
 
+### Current deployment model
+- **Live web entrypoint**: `bunny-backend` serves both the API and the static frontend
+- **Current production shape**: backend + PostgreSQL + Redis
+- **Separate frontend pod**: not required in the current production architecture
+- **Architecture notes**: see `docs/DEPLOYMENT-ARCHITECTURE.md`
+
 ### Key Features
 - **Real-time Multiplayer**: All actions sync instantly between players
 - **Mobile Optimized**: Perfect for couples playing on their phones
