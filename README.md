@@ -1,89 +1,83 @@
-# 🐰❤️ Bunny Family - Cooperative Tamagotchi Game
+# 🐰 Bunny Family
 
-A heartwarming cooperative multiplayer browser game where couples raise adorable bunny babies together in real-time!
+> A cozy real-time co-op bunny parenting game for two players.
 
-## 💕 Game Concept
+![Platform](https://img.shields.io/badge/platform-web-pink)
+![Stack](https://img.shields.io/badge/stack-Node.js%20%7C%20Socket.IO%20%7C%20HTML5-purple)
+![Mode](https://img.shields.io/badge/gameplay-co--op-brightgreen)
+![Status](https://img.shields.io/badge/status-active%20prototype-orange)
 
-**Bunny Family** is a cooperative Tamagotchi-style game designed for two players (perfect for couples!) who work together to raise virtual bunny babies. Unlike competitive games, this is all about teamwork, love, and nurturing your shared bunny family.
+Bunny Family is a charming browser game where two players raise a shared bunny family together. Instead of competing, you cooperate: hatching eggs, feeding babies, keeping them happy, and watching the family grow in real time.
 
-### 👨‍👩‍👧‍👦 Core Gameplay
+## ✨ Why it feels special
 
-- **Two Players**: Black bunny parent 🐰⬛ and White bunny parent 🐰⬜
-- **Shared Babies**: Both players care for the same bunny babies together
-- **Real-time Cooperation**: When one player feeds a baby, the other sees it instantly
-- **Growth Journey**: Watch your babies grow from eggs to adults
-- **Family Building**: Adult bunnies can have their own babies, expanding your family
+- **Built for co-op** — both players care for the same bunny family together
+- **Live synchronized gameplay** — actions update instantly across both players
+- **Cute, cozy identity** — soft visuals, playful animations, and warm game loops
+- **Mobile-friendly browser play** — easy to open and play from a phone or desktop
+- **Expandable design** — ready for more items, scenes, personalities, and progression
 
-### 🥚 Baby Growth Stages
+## 🎮 Core gameplay
 
-1. **Egg** 🥚 → Both players tap together to hatch
-2. **Newborn** 👶 → Tiny and needs lots of attention
-3. **Toddler** 🧒 → Starts hopping around, needs playtime  
-4. **Young Bunny** 🧑 → More independent, new interactions
-5. **Grown Bunny** 👨 → Can have babies of their own!
+### Players
+- **Black bunny parent** 🐰⬛
+- **White bunny parent** 🐰⬜
 
-### 💖 Tamagotchi Care System
+### Care loop
+Players work together to manage each bunny’s needs:
+- **🥕 Hunger**
+- **😊 Happiness**
+- **💤 Energy**
+- **🧼 Cleanliness**
+- **❤️ Love**
 
-Each baby bunny has five essential needs that both players must manage:
+### Family progression
+- Hatch eggs together
+- Raise babies through multiple life stages
+- Grow the family over time
+- Earn carrots and use the shop/inventory system
+- Build a shared cozy routine, not a competitive score chase
 
-- **🥕 Hunger** - Feed them carrots from your shared garden
-- **😊 Happiness** - Play with them to keep spirits up
-- **💤 Energy** - Help them sleep when tired, wake when rested
-- **🧹 Cleanliness** - Keep the nest clean and tidy
-- **❤️ Love** - Pet and cuddle for emotional bonding
+## 🌱 Bunny stages
 
-### 🎮 How to Play
+1. **Egg** 🥚
+2. **Newborn** 🐣
+3. **Baby** 🐇
+4. **Toddler** 🌼
+5. **Child / young bunny** ✨
 
-**Lobby & Connection:**
-1. One player creates a family with a shareable code
-2. Partner joins using the family code
-3. Both players click "Ready" to start your family journey
+## 🖼️ Media / screenshots
 
-**Daily Care:**
-- Monitor status bars for each baby's needs
-- Tap action buttons to care for selected babies
-- Harvest carrots from the garden (they regrow over time)
-- Watch babies make cute sounds and animations
-- Coordinate with your partner - teamwork makes the dream work!
+Screenshots and gameplay clips can be added here as the project presentation grows.
 
-**Special Moments:**
-- **Egg Hatching**: Both players must tap together to help babies hatch
-- **Growth Celebrations**: Babies grow when well-cared for
-- **New Arrivals**: Happy adult bunnies may lay new eggs
-- **Day/Night Cycles**: Babies have different needs at different times
+Suggested future additions:
+- lobby screen
+- in-game family scene
+- shop/inventory flow
+- bunny interaction moments
 
-## 🛠 Technical Features
+## 🧰 Tech stack
 
-### Tech Stack
-- **Frontend**: HTML5 + Phaser 3 + CSS3
-- **Backend**: Node.js + Express + Socket.io  
-- **Real-time**: WebSocket synchronization
-- **Mobile-first**: Touch-optimized responsive design
-- **Graphics**: Programmatically drawn cute sprites
+- **Frontend:** HTML5, CSS3, vanilla JavaScript, Canvas rendering
+- **Backend:** Node.js, Express, Socket.IO
+- **Realtime:** WebSocket-based multiplayer sync
+- **State / runtime services:** Redis, PostgreSQL, file-backed saves in some flows
+- **Deployment:** Kubernetes/home-lab oriented runtime
 
-### Current deployment model
-- **Live web entrypoint**: `bunny-backend` serves both the API and the static frontend
-- **Current production shape**: backend + PostgreSQL + Redis
-- **Separate frontend pod**: not required in the current production architecture
-- **Architecture notes**: see `docs/DEPLOYMENT-ARCHITECTURE.md`
+## 🏗️ Current runtime architecture
 
-### Key Features
-- **Real-time Multiplayer**: All actions sync instantly between players
-- **Mobile Optimized**: Perfect for couples playing on their phones
-- **Persistent Game State**: Family continues growing between sessions
-- **Cute Animations**: Hearts, bouncing, crying, sleeping effects
-- **Audio-Visual Feedback**: Expressive animations and mood indicators
+The current live deployment uses a **single web entrypoint** model:
 
-## 🚀 Getting Started
+- `bunny-backend` serves the API
+- `bunny-backend` also serves the static frontend
+- `bunny-postgres` stores persistent data
+- `bunny-redis` supports runtime/state features
 
-### Quick Start
+More detail: [`docs/DEPLOYMENT-ARCHITECTURE.md`](docs/DEPLOYMENT-ARCHITECTURE.md)
 
-```bash
-cd bunny-game
-./start.sh
-```
+## 🚀 Getting started
 
-### Manual Setup
+### Local development
 
 ```bash
 cd backend
@@ -91,102 +85,77 @@ npm install
 node server.js
 ```
 
-### Using Docker
+Then open:
+
+```bash
+http://localhost:3000
+```
+
+### Docker
 
 ```bash
 docker build -t bunny-family .
 docker run -p 3000:3000 bunny-family
 ```
 
-**Access the game**: Open `http://localhost:3000`
+### Docker Compose
 
-## 📱 Mobile Experience
+```bash
+docker compose up --build
+```
 
-Bunny Family is designed mobile-first for couples to play together:
+## 📁 Project structure
 
-- **Touch Controls**: Tap babies to select, tap buttons to interact
-- **Responsive Design**: Works perfectly on phones and tablets
-- **Portrait/Landscape**: Optimized for both orientations
-- **Intuitive UI**: Large buttons and clear visual feedback
+```text
+bunny-game/
+├── backend/     # Express + Socket.IO server and game logic
+├── frontend/    # Browser client, canvas rendering, UI, game interactions
+├── docs/        # Design direction and architecture notes
+├── k8s/         # Kubernetes manifests
+├── terraform/   # Infra-as-code experiments / environment setup
+└── test/        # Game logic and behavior tests
+```
 
-## 🎨 Visual Design
+## 💡 Feature highlights
 
-Design source of truth: [`docs/FIGMA-DESIGN-DIRECTION.md`](docs/FIGMA-DESIGN-DIRECTION.md)
+- real-time room-based multiplayer
+- draggable bunny interactions
+- growth and progression systems
+- egg discovery / family expansion mechanics
+- carrot economy and shop items
+- responsive UI for casual mobile play
+- expressive visual feedback and animations
 
-**Art Style**: Cute programmatic graphics with a warm, pastel color palette
-- **Bunnies**: Round bodies with triangle ears and expressive eyes
-- **Colors**: Pink, purple, and pastel themes for a loving atmosphere
-- **Animations**: Hearts float when petting, babies bounce when happy
-- **Mood System**: Visual cues show how babies are feeling
+## 🎨 Design direction
 
-**UI Layout**:
-- **Top**: Connection status for both players + day/night cycle
-- **Status Panel**: Need meters and baby information cards  
-- **Game Area**: Interactive nest where babies live and play
-- **Garden**: Carrot harvesting area (tap to collect)
-- **Controls**: Five care action buttons (Feed, Play, Sleep, Clean, Pet)
+The game aims for a soft, affectionate, cozy look rather than a hyper-competitive or hardcore feel.
 
-## 🧩 Game Mechanics Deep Dive
+Design source of truth:
+- [`docs/FIGMA-DESIGN-DIRECTION.md`](docs/FIGMA-DESIGN-DIRECTION.md)
+- [`docs/FIGMA-HANDOFF-CHECKLIST.md`](docs/FIGMA-HANDOFF-CHECKLIST.md)
 
-### Need Management
-- **Decay Rates**: Needs decrease over time (newborns need more attention)
-- **Satisfaction**: Actions restore specific needs and add growth points
-- **Mood System**: Babies show emotions based on overall care quality
-- **Cooperation Bonus**: Both players caring together increases family love
+## 🛣️ Roadmap ideas
 
-### Growth & Development
-- **Age-based Progression**: Babies grow every few minutes with good care
-- **Growth Points**: Earned through feeding, playing, and love
-- **Stage Requirements**: Each growth stage has specific care thresholds
-- **Family Legacy**: Track total babies raised across generations
+- better scene variety and environmental storytelling
+- bunny customization and improved item fitting
+- polished UI/audio feedback
+- richer progression and family history systems
+- screenshots, trailer GIFs, and better repo media
+- broader QA coverage and gameplay balancing
 
-### Garden System
-- **Carrot Growth**: Carrots regrow automatically every 30 seconds
-- **Shared Resource**: Both players use the same carrot supply
-- **Harvest Strategy**: Timing carrot collection for optimal feeding
+## 🤝 Contributing
 
-## 🏆 Success Metrics
+This repo is currently evolving quickly. If you contribute:
 
-**Family Goals:**
-- Keep all babies happy and healthy
-- Successfully raise babies to adulthood
-- Expand your bunny family through generations
-- Maximize family love meter through cooperative care
-- Create a thriving multi-generational bunny dynasty
+1. keep the cozy co-op identity intact
+2. prefer small, focused PRs
+3. include clear validation notes for gameplay changes
+4. avoid architecture changes without documenting them clearly
 
-## 🌟 Perfect For
+## 📌 Project goal
 
-- **Couples**: Strengthen your bond through shared virtual parenting
-- **Long-distance Relationships**: Stay connected through daily care routines
-- **Casual Gamers**: No pressure, just pure cooperative fun
-- **Anyone who loves cute things**: Adorable bunnies and heartwarming gameplay
-
-## 🔧 Development Features
-
-### Responsive Architecture
-- **Server-authoritative**: Game state managed on backend
-- **Real-time Sync**: Socket.io for instant multiplayer updates
-- **Mobile Performance**: Optimized for touch devices and slower networks
-- **Graceful Degradation**: Handles disconnections elegantly
-
-### Customization Options
-- **Extendable**: Easy to add new baby types, needs, or actions
-- **Configurable**: Adjust growth rates, decay speeds, and game balance
-- **Themeable**: Simple to modify colors and visual style
-
-## 🔮 Future Enhancements
-
-Potential additions for future versions:
-- **Baby Personalities**: Unique traits and preferences for each bunny
-- **Seasonal Events**: Holiday-themed decorations and special items
-- **Photo Albums**: Capture and share favorite family moments  
-- **Baby Names**: Custom naming for each family member
-- **Family Tree**: Visual genealogy of your bunny dynasty
-- **Mini-games**: Special activities to play with older bunnies
-- **Customization**: Decorate your nest and choose bunny colors
+Bunny Family is meant to feel like a warm shared ritual: a small browser game that turns co-op care, affection, and routine into something playful and memorable.
 
 ---
 
-**Start your bunny family adventure today! 🐰❤️**
-
-*Bunny Family - Where love multiplies and families grow together* 💕
+**Bunny Family** — where two players grow one tiny cozy world together 💗
