@@ -1,3 +1,6 @@
+# NOTE: This standalone frontend manifest is not part of the current production architecture.
+# Production currently serves the static frontend from bunny-backend.
+# See docs/DEPLOYMENT-ARCHITECTURE.md before applying split-frontend resources.
 apiVersion: v1
 kind: Service
 metadata:
