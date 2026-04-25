@@ -249,13 +249,15 @@ const GAME_CONFIG = {
                 cost: 5, 
                 effect: { happiness: 10 },
                 type: 'consumable',
+                visual: { slot: 'paws', anchor: 'frontPaws', offset: { x: 0.18, y: 0.34 }, scale: 0.85 },
                 description: 'A fun ball that boosts happiness when used!'
             },
             soft_blanket: {
                 name: 'Soft Blanket',
                 cost: 8,
                 effect: { energy: 15, sleep_efficiency: 1.2 },
-                type: 'consumable', 
+                type: 'consumable',
+                visual: { slot: 'body', anchor: 'neck', offset: { x: 0, y: 0.08 }, scale: 1.08 },
                 description: 'Helps bunnies sleep better and recover energy.'
             },
             carrot_treat: {
@@ -263,6 +265,7 @@ const GAME_CONFIG = {
                 cost: 3,
                 effect: { hunger: 15, happiness: 5 },
                 type: 'consumable',
+                visual: { slot: 'mouth', anchor: 'mouth', offset: { x: 0.32, y: 0.08 }, scale: 0.72 },
                 description: 'Delicious treat that satisfies hunger and brings joy.'
             },
             decorative_plant: {
@@ -270,6 +273,7 @@ const GAME_CONFIG = {
                 cost: 12,
                 effect: { happiness_passive: 2 },
                 type: 'decoration',
+                visual: { slot: 'ground', anchor: 'groundSide', offset: { x: -0.9, y: 0.5 }, scale: 0.95 },
                 description: 'Beautiful plant that provides ongoing happiness.'
             },
             night_light: {
@@ -277,6 +281,7 @@ const GAME_CONFIG = {
                 cost: 15,
                 effect: { sleep_quality: 1.3, fear_reduction: 10 },
                 type: 'decoration',
+                visual: { slot: 'aura', anchor: 'headTop', offset: { x: 0.45, y: -0.2 }, scale: 0.78 },
                 description: 'Helps bunnies sleep peacefully through the night.'
             }
         }
@@ -332,6 +337,7 @@ class GameRoom {
                         playing: 0,
                         hatching: 0
                     },
+                    equippedItems: {},
                     // NEW: Position tracking for draggable bunnies
                     position: { x: 400, y: 300 },
                     targetPosition: { x: 400, y: 300 }
@@ -394,6 +400,9 @@ class GameRoom {
                 if (!baby.lastCleaned) baby.lastCleaned = now;
                 if (!baby.cooperativeBonuses) {
                     baby.cooperativeBonuses = { feeding: 0, playing: 0, hatching: 0 };
+                }
+                if (!baby.equippedItems || typeof baby.equippedItems !== 'object') {
+                    baby.equippedItems = {};
                 }
             });
             
@@ -1942,6 +1951,7 @@ class GameRoom {
             lastPlayed: Date.now(),
             lastCleaned: Date.now(),
             cooperativeBonuses: { feeding: 0, playing: 0, hatching: 0 },
+            equippedItems: {},
             position: { x: 400 + Math.random() * 200 - 100, y: 300 + Math.random() * 100 - 50 },
             targetPosition: { x: 400 + Math.random() * 200 - 100, y: 300 + Math.random() * 100 - 50 },
             // Special properties from the egg
@@ -2123,7 +2133,21 @@ class GameRoom {
             // Decorations provide passive effects, don't get consumed
             effectResult = { success: true, message: `${item.name} is now active!` };
         }
-        
+
+        if (effectResult && effectResult.success && targetBaby && item.visual) {
+            if (!targetBaby.equippedItems || typeof targetBaby.equippedItems !== 'object') {
+                targetBaby.equippedItems = {};
+            }
+            const slot = item.visual.slot || itemId;
+            targetBaby.equippedItems[slot] = {
+                itemId,
+                slot,
+                equippedAt: Date.now(),
+                sourcePlayerId: playerId
+            };
+            effectResult.message = `${effectResult.message} Equipped on ${targetBaby.name}.`;
+        }
+
         return effectResult;
     }
 
