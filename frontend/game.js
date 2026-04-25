@@ -29,11 +29,11 @@ let weatherState = {
 let shopState = {
     isOpen: false,
     items: [
-        { id: 'toy_ball', name: 'Bouncy Ball', price: 5, icon: '🏀', desc: 'Boosts happiness' },
-        { id: 'soft_blanket', name: 'Soft Blanket', price: 8, icon: '🧣', desc: 'Better sleep & energy' },
-        { id: 'carrot_treat', name: 'Carrot Treat', price: 3, icon: '🥕', desc: 'Satisfies hunger' },
-        { id: 'decorative_plant', name: 'Plant', price: 12, icon: '🌿', desc: 'Passive happiness' },
-        { id: 'night_light', name: 'Night Light', price: 15, icon: '🌙', desc: 'Better sleep quality' }
+        { id: 'toy_ball', name: 'Bouncy Ball', price: 5, icon: '🏀', desc: 'Boosts happiness', visual: { slot: 'paws', anchor: 'frontPaws', offset: { x: 0.18, y: 0.34 }, scale: 0.85 } },
+        { id: 'soft_blanket', name: 'Soft Blanket', price: 8, icon: '🧣', desc: 'Better sleep & energy', visual: { slot: 'body', anchor: 'neck', offset: { x: 0, y: 0.08 }, scale: 1.08 } },
+        { id: 'carrot_treat', name: 'Carrot Treat', price: 3, icon: '🥕', desc: 'Satisfies hunger', visual: { slot: 'mouth', anchor: 'mouth', offset: { x: 0.32, y: 0.08 }, scale: 0.72 } },
+        { id: 'decorative_plant', name: 'Plant', price: 12, icon: '🌿', desc: 'Passive happiness', visual: { slot: 'ground', anchor: 'groundSide', offset: { x: -0.9, y: 0.5 }, scale: 0.95 } },
+        { id: 'night_light', name: 'Night Light', price: 15, icon: '🌙', desc: 'Better sleep quality', visual: { slot: 'aura', anchor: 'headTop', offset: { x: 0.45, y: -0.2 }, scale: 0.78 } }
     ]
 };
 let inventoryState = {}; // { itemId: quantity }
@@ -490,6 +490,14 @@ function onGameStateUpdate(newGameState) {
             });
         });
         inventoryState = merged;
+    }
+
+    if (Array.isArray(newGameState.babies)) {
+        newGameState.babies.forEach(baby => {
+            if (!baby.equippedItems || typeof baby.equippedItems !== 'object') {
+                baby.equippedItems = {};
+            }
+        });
     }
     
     updateGameUI();
@@ -2632,6 +2640,135 @@ function drawEgg(x, y, baby) {
     }
 }
 
+function getShopItemDefinition(itemId) {
+    return shopState.items.find(item => item.id === itemId) || null;
+}
+
+function getBunnyAnchors(size) {
+    return {
+        headTop: { x: 0, y: -size * 1.02 },
+        neck: { x: 0, y: -size * 0.36 },
+        mouth: { x: 0, y: -size * 0.1 },
+        frontPaws: { x: size * 0.18, y: size * 0.3 },
+        groundSide: { x: -size * 0.92, y: size * 0.56 }
+    };
+}
+
+function drawEquippedItems(baby, size, layer = 'all') {
+    if (!baby.equippedItems) return;
+
+    const entries = Object.values(baby.equippedItems).filter(entry => entry && entry.itemId);
+    if (!entries.length) return;
+
+    const anchors = getBunnyAnchors(size);
+    const layerOrders = {
+        under: ['ground', 'body'],
+        over: ['paws', 'mouth', 'aura'],
+        all: ['ground', 'body', 'paws', 'mouth', 'aura']
+    };
+    const drawOrder = layerOrders[layer] || layerOrders.all;
+
+    drawOrder.forEach(slot => {
+        entries.filter(entry => entry.slot === slot).forEach(entry => {
+            const item = getShopItemDefinition(entry.itemId);
+            if (!item || !item.visual) return;
+            drawEquippedItem(item, item.visual, anchors, size, baby);
+        });
+    });
+}
+
+function drawEquippedItem(item, visual, anchors, size, baby) {
+    const anchor = anchors[visual.anchor] || { x: 0, y: 0 };
+    const itemX = anchor.x + ((visual.offset?.x || 0) * size);
+    const itemY = anchor.y + ((visual.offset?.y || 0) * size);
+    const scale = (visual.scale || 1) * (size / 25);
+
+    ctx.save();
+    ctx.translate(itemX, itemY);
+
+    switch (item.id) {
+        case 'soft_blanket':
+            ctx.fillStyle = '#a78bfa';
+            ctx.strokeStyle = '#7c3aed';
+            ctx.lineWidth = Math.max(1, size * 0.05);
+            ctx.beginPath();
+            ctx.moveTo(-size * 0.72, -size * 0.02);
+            ctx.quadraticCurveTo(0, -size * 0.42, size * 0.72, -size * 0.02);
+            ctx.lineTo(size * 0.5, size * 0.6);
+            ctx.quadraticCurveTo(0, size * 0.82, -size * 0.5, size * 0.6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            for (let i = -2; i <= 2; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * size * 0.16, size * 0.57);
+                ctx.lineTo(i * size * 0.16, size * 0.77);
+                ctx.stroke();
+            }
+            break;
+        case 'toy_ball':
+            ctx.fillStyle = '#ff8a65';
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.28 * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#d84315';
+            ctx.lineWidth = Math.max(1, size * 0.04);
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.28 * scale, 0, Math.PI * 2);
+            ctx.moveTo(-size * 0.28 * scale, 0);
+            ctx.lineTo(size * 0.28 * scale, 0);
+            ctx.moveTo(0, -size * 0.28 * scale);
+            ctx.lineTo(0, size * 0.28 * scale);
+            ctx.stroke();
+            break;
+        case 'carrot_treat':
+            ctx.rotate(0.45);
+            ctx.fillStyle = '#fb8c00';
+            ctx.beginPath();
+            ctx.moveTo(0, -size * 0.08);
+            ctx.lineTo(size * 0.38 * scale, 0);
+            ctx.lineTo(0, size * 0.08);
+            ctx.closePath();
+            ctx.fill();
+            ctx.fillStyle = '#43a047';
+            ctx.beginPath();
+            ctx.ellipse(-size * 0.04, -size * 0.07, size * 0.08, size * 0.04, -0.5, 0, Math.PI * 2);
+            ctx.ellipse(-size * 0.02, size * 0.07, size * 0.08, size * 0.04, 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+        case 'decorative_plant':
+            ctx.fillStyle = '#8d6e63';
+            ctx.beginPath();
+            ctx.roundRect(-size * 0.18, size * 0.05, size * 0.36, size * 0.22, size * 0.06);
+            ctx.fill();
+            ctx.fillStyle = '#4caf50';
+            [-0.14, 0, 0.14].forEach(offset => {
+                ctx.beginPath();
+                ctx.ellipse(offset * size, -size * 0.04, size * 0.12, size * 0.22, offset * 2, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            break;
+        case 'night_light':
+            ctx.fillStyle = 'rgba(255, 244, 143, 0.22)';
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#fff59d';
+            ctx.beginPath();
+            ctx.arc(0, 0, size * 0.18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#fbc02d';
+            ctx.lineWidth = Math.max(1, size * 0.04);
+            ctx.beginPath();
+            ctx.moveTo(0, size * 0.18);
+            ctx.lineTo(0, size * 0.44);
+            ctx.stroke();
+            break;
+    }
+
+    ctx.restore();
+}
+
 function drawBunnyBaby(x, y, baby) {
     const stage = baby.stage;
     let size;
@@ -2703,9 +2840,13 @@ function drawBunnyBaby(x, y, baby) {
     ctx.ellipse(size * 0.3, -size * 0.8, earSize * 0.3, earSize * 0.6, 0.3, 0, Math.PI * 2);
     ctx.fill();
     
+    drawEquippedItems(baby, size, 'under');
+
     // Face
     drawBunnyFace(0, -size * 0.3, size * 0.6, baby.sleeping);
-    
+
+    drawEquippedItems(baby, size, 'over');
+
     // Tail
     ctx.fillStyle = bunnyColor;
     ctx.beginPath();
