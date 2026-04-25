@@ -2149,18 +2149,23 @@ class GameRoom {
         // Check cooldown
         const timeSinceLastEgg = now - this.gameState.eggSpawning.lastNewEggTime;
         let requiredCooldown = config.cooldown;
-        
+
         // Apply couple bonus (halved cooldown if both players online)
         if (this.getConnectedPlayerCount() === 2) {
             requiredCooldown *= config.coupleCooldownMultiplier;
         }
-        
+
         if (timeSinceLastEgg < requiredCooldown) return;
-        
+
+        // Cooldown elapsed — clear any stale trigger flags so the same baby
+        // can act as the trigger again on the next cycle. Without this the
+        // first baby permanently blocked all future spawns once flagged.
+        this.gameState.babies.forEach(b => { b.triggeredEggSpawn = false });
+
         // Conditions met! Create a discoverable egg
         const newEgg = this.createNewEgg();
-        
-        // Mark the baby that triggered this
+
+        // Mark the baby that triggered this (cleared on next cooldown elapse)
         eligibleBabies[0].triggeredEggSpawn = true;
         
         // Add to discovered eggs (waiting for carrot payment)

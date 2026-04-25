@@ -1940,9 +1940,16 @@ function getBunnyPosition(bunnyId) {
         const w = rect.width || 800;
         const h = rect.height || 600;
 
-        // Use server position if available, otherwise calculate default
+        // Use server position if available, otherwise calculate default.
+        // The previous guard (baby.position.x !== 400) treated x===400 as a
+        // placeholder, which silently ignored any bunny that happened to be
+        // dragged to x=400 — first click then snapped it to the layout-default
+        // (h*0.65, near the bottom). Trust any finite server position.
         let initX, initY;
-        if (baby && baby.position && baby.position.x !== 400) {
+        const hasServerPos =
+            baby && baby.position &&
+            Number.isFinite(baby.position.x) && Number.isFinite(baby.position.y);
+        if (hasServerPos) {
             initX = baby.position.x;
             initY = baby.position.y;
         } else {
@@ -9303,16 +9310,29 @@ function updateMilestoneTasks() {
 }
 
 function updateBabyStatus() {
-    if (!gameState.babies || !selectedBabyId) return;
-    
-    const baby = gameState.babies.find(b => b.id === selectedBabyId);
-    if (!baby) return;
-    
+    const baby = gameState.babies && selectedBabyId
+        ? gameState.babies.find(b => b.id === selectedBabyId)
+        : null;
+
+    if (!baby) {
+        // No selectable bunny — show clear empty-state instead of stale stats
+        if (babyName) {
+            const hasAnyBaby = !!(gameState.babies && gameState.babies.length);
+            babyName.textContent = hasAnyBaby ? 'Tap a bunny to select' : 'No bunnies yet';
+        }
+        updateStatusBar('hunger', 0);
+        updateStatusBar('happiness', 0);
+        updateStatusBar('energy', 0);
+        updateStatusBar('cleanliness', 0);
+        updateStatusBar('love', 0);
+        return;
+    }
+
     // Update baby name
     if (babyName) {
         babyName.textContent = baby.name || 'Baby Bunny';
     }
-    
+
     // Update status bars
     updateStatusBar('hunger', baby.hunger || 0);
     updateStatusBar('happiness', baby.happiness || 0);
@@ -9369,9 +9389,19 @@ function updateActionButtons() {
         sleepBtn.textContent = anySleeping ? '😴 Wake' : '💤 Sleep';
     }
 
-    if (!selectedBabyId) return;
-    const baby = gameState.babies.find(b => b.id === selectedBabyId);
-    if (!baby) return;
+    const baby = selectedBabyId ? gameState.babies.find(b => b.id === selectedBabyId) : null;
+
+    if (!baby) {
+        // No selectable bunny — disable per-bunny actions so taps can't misfire
+        if (feedBtn) feedBtn.disabled = true;
+        if (playBtn) playBtn.disabled = true;
+        if (cleanBtn) cleanBtn.disabled = true;
+        if (petBtn) {
+            petBtn.disabled = true;
+            petBtn.textContent = '❤️ Pet';
+        }
+        return;
+    }
 
     const totalCarrots = (gameState.carrots || 0) + (gameState.garden?.carrots || 0);
 
