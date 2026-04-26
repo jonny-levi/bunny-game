@@ -3,7 +3,9 @@ const fs = require('fs').promises;
 const path = require('path');
 
 const SAVE_DIR = path.join(__dirname, 'saves');
-const BACKUP_DIR = path.join(__dirname, 'backups');
+// Keep backups on the writable saves volume in Kubernetes. The app directory is
+// read-only/non-writable for the non-root runtime user.
+const BACKUP_DIR = path.join(SAVE_DIR, 'backups');
 
 // Security: Helper function to sanitize room codes
 function sanitizeRoomCode(roomCode) {
