@@ -221,14 +221,11 @@ function setupCanvasContextHandlers() {
             ctx.imageSmoothingEnabled = true;
             ctx.imageSmoothingQuality = 'high';
 
-            // Re-apply device pixel ratio scaling without accumulating transforms
+            // Re-apply device pixel ratio scaling
             const dpr = window.devicePixelRatio || 1;
-            if (canvas.width && canvas.height && typeof ctx.setTransform === 'function') {
-                ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            if (canvas.width && canvas.height) {
+                ctx.scale(dpr, dpr);
             }
-
-            // Re-register drag listeners removed during context loss
-            setupDragEventListeners();
 
             // Clear flags to force background redraw
             backgroundNeedsRedraw = true;
@@ -556,9 +553,9 @@ function onGameEvent(data) {
     }
 }
 
-function onActionFailed(data = {}) {
+function onActionFailed(data) {
     console.log('❌ Action failed:', data);
-    showMessage(data.message || 'Action failed. Please try again.', 'error');
+    showMessage(data.message, 'error');
 }
 
 // New feature handlers
