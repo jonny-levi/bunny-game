@@ -43,9 +43,12 @@ async function setupRedisAdapter() {
     try {
         console.log('🔄 Setting up Redis adapter for Socket.IO...');
         
-        // Create Redis clients for pub/sub
+        // Create Redis clients for pub/sub. Prefer REDIS_URL so Kubernetes/dev envs can
+        // point the adapter at the right service without code changes.
+        const redisUrl = process.env.REDIS_URL ||
+            (process.env.REDIS_HOST ? `redis://${process.env.REDIS_HOST}:${process.env.REDIS_PORT || 6379}` : 'redis://bunny-redis:6379');
         const pubClient = createClient({ 
-            url: 'redis://bunny-redis:6379',
+            url: redisUrl,
             socket: {
                 reconnectDelay: 1000,
                 connectTimeout: 5000,
@@ -99,14 +102,14 @@ const MAX_CONNECTIONS_PER_IP = 10;
 const MAX_TOTAL_CONNECTIONS = 1000;
 
 // Security headers middleware
-const nonce = crypto.randomBytes(16).toString('base64');
 app.use((req, res, next) => {
+    const nonce = crypto.randomBytes(16).toString('base64');
     req.nonce = nonce;
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('X-XSS-Protection', '1; mode=block');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    // FIX: Remove unsafe-inline from CSP header, use nonce instead
+    // Use a per-request nonce instead of a process-wide nonce
     res.setHeader('Content-Security-Policy', `default-src 'self'; script-src 'self' 'nonce-${nonce}' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; connect-src 'self' ws: wss:; img-src 'self' data: blob:;`);
     next();
 });
