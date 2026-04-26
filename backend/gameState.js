@@ -27,7 +27,7 @@ class GameStateManager {
         // FIX: Auto-save race conditions - prevent concurrent file writes
         this.saveQueue = new Map(); // roomCode -> promise
         this.saveLocks = new Set(); // Track which rooms are being saved
-        this.ensureDirectories();
+        this.directoriesReady = this.ensureDirectories();
     }
 
     async ensureDirectories() {
@@ -36,12 +36,14 @@ class GameStateManager {
             await fs.mkdir(BACKUP_DIR, { recursive: true });
         } catch (error) {
             console.error('Failed to create save directories:', error);
+            throw error;
         }
     }
 
     async saveRoomState(roomCode, gameState, players) {
         // FIX: Prevent concurrent file writes using queue/lock mechanism
         const sanitizedRoomCode = sanitizeRoomCode(roomCode);
+        await this.directoriesReady;
         
         // If already saving this room, wait for existing save to complete
         if (this.saveQueue.has(sanitizedRoomCode)) {
@@ -156,7 +158,17 @@ class GameStateManager {
             const backupFilename = `room_${sanitizedRoomCode}_${Date.now()}.json`;
             const backupPath = path.join(BACKUP_DIR, backupFilename);
             
-            await fs.copyFile(filepath, backupPath);
+            try {
+                await fs.copyFile(filepath, backupPath);
+            } catch (copyError) {
+                // A room can be removed or its first save can race between access() and copyFile().
+                // That is not fatal; skip this backup and continue saving the current state.
+                if (copyError.code === 'ENOENT') {
+                    console.warn(`Skipped backup for room ${sanitizedRoomCode}; source disappeared before copy`);
+                    return;
+                }
+                throw copyError;
+            }
             
             // Clean old backups (keep only last 5 per room)
             await this.cleanOldBackups(sanitizedRoomCode);
@@ -210,9 +222,11 @@ class GameStateManager {
     }
 
     async deleteRoomState(roomCode) {
+        let sanitizedRoomCode = roomCode;
         try {
             // Security: Sanitize room code to prevent path traversal
-            const sanitizedRoomCode = sanitizeRoomCode(roomCode);
+            sanitizedRoomCode = sanitizeRoomCode(roomCode);
+            await this.directoriesReady;
             
             const filename = `room_${sanitizedRoomCode}.json`;
             const filepath = path.join(SAVE_DIR, filename);
