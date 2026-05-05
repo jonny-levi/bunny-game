@@ -33,10 +33,29 @@ let shopState = {
         { id: 'soft_blanket', name: 'Soft Blanket', price: 8, icon: '🧣', desc: 'Better sleep & energy' },
         { id: 'carrot_treat', name: 'Carrot Treat', price: 3, icon: '🥕', desc: 'Satisfies hunger' },
         { id: 'decorative_plant', name: 'Plant', price: 12, icon: '🌿', desc: 'Passive happiness' },
-        { id: 'night_light', name: 'Night Light', price: 15, icon: '🌙', desc: 'Better sleep quality' }
+        { id: 'night_light', name: 'Night Light', price: 15, icon: '🌙', desc: 'Better sleep quality' },
+        { id: 'bubble_bath', name: 'Bubble Bath', price: 6, icon: '🛁', desc: 'Co-op duet — fills the tub!' }
     ]
 };
 let inventoryState = {}; // { itemId: quantity }
+
+// V7 Bubble Bath Duet — client lifecycle mirror
+let bathState = {
+    active: false,
+    bathId: null,
+    reason: null,
+    expiresAt: 0,
+    holdMs: 5000,
+    holdElapsedMs: 0,            // last server-confirmed hold time
+    holdElapsedAtServerTime: 0,  // local time when holdElapsedMs was last updated
+    paused: false,
+    pauseReason: null,
+    graceUntil: 0,
+    stations: { sponge: null, tap: null }, // playerId or null
+    myStation: null,                        // 'sponge' | 'tap' | null — what THIS client is locally pressing
+    sudsParticles: [],
+    lastResolvedAt: 0
+};
 
 let notificationQueue = [];
 
@@ -542,7 +561,286 @@ function onGameEvent(data) {
         case 'daily_reward_claimed':
             showMessage(data.message, 'success');
             break;
+        // V7 Bubble Bath Duet
+        case 'bath_available':
+            onBathAvailable(data);
+            break;
+        case 'bath_grab_station':
+            onBathGrabStation(data);
+            break;
+        case 'bath_release_station':
+            onBathReleaseStation(data);
+            break;
+        case 'bath_progress':
+            onBathProgress(data);
+            break;
+        case 'bath_resolved':
+            onBathResolved(data);
+            break;
     }
+}
+
+// ===== V7 BUBBLE BATH DUET =====
+function onBathAvailable(data) {
+    bathState.active = true;
+    bathState.bathId = data.bathId;
+    bathState.reason = data.reason;
+    bathState.expiresAt = data.expiresAt;
+    bathState.holdMs = data.holdMs || 5000;
+    bathState.holdElapsedMs = 0;
+    bathState.holdElapsedAtServerTime = Date.now();
+    bathState.paused = false;
+    bathState.pauseReason = null;
+    bathState.graceUntil = 0;
+    bathState.stations = { sponge: null, tap: null };
+    bathState.myStation = null;
+    bathState.sudsParticles = [];
+    showMessage('🛁 Bath time! Both bunnies — grab the Sponge or the Tap and HOLD!', 'info');
+}
+
+function onBathGrabStation(data) {
+    if (!bathState.active || data.bathId !== bathState.bathId) return;
+    if (data.station && data.station in bathState.stations) {
+        bathState.stations[data.station] = data.playerId;
+    }
+    if (data.redirected) {
+        showMessage('Auto-redirected to the open station!', 'info');
+    }
+}
+
+function onBathReleaseStation(data) {
+    if (!bathState.active || data.bathId !== bathState.bathId) return;
+    if (data.station && data.station in bathState.stations) {
+        bathState.stations[data.station] = null;
+    }
+    if (data.reason === 'grace_expired' && data.playerId === myPlayerId) {
+        bathState.myStation = null;
+    }
+}
+
+function onBathProgress(data) {
+    if (!bathState.active || data.bathId !== bathState.bathId) return;
+    bathState.paused = !!data.paused;
+    bathState.pauseReason = data.reason || null;
+    bathState.graceUntil = data.graceUntil || 0;
+    if (typeof data.holdElapsedMs === 'number') {
+        bathState.holdElapsedMs = data.holdElapsedMs;
+        bathState.holdElapsedAtServerTime = Date.now();
+    }
+    if (typeof data.holdMs === 'number') bathState.holdMs = data.holdMs;
+}
+
+// Visual-only interpolation between server progress events so the arc
+// fills smoothly even though the server tickBath runs only every 8s.
+function getInterpolatedHoldElapsed() {
+    if (!bathState.active) return 0;
+    const bothHeldHere = bathState.stations.sponge && bathState.stations.tap
+        && bathState.stations.sponge !== bathState.stations.tap;
+    if (!bothHeldHere || bathState.paused) return bathState.holdElapsedMs;
+    const localElapsed = Date.now() - (bathState.holdElapsedAtServerTime || Date.now());
+    return Math.min(bathState.holdMs, bathState.holdElapsedMs + Math.max(0, localElapsed));
+}
+
+function onBathResolved(data) {
+    if (!bathState.active && data.resolution !== 'server_reset') {
+        // Late server_reset still tears down any leftover client UI just in case
+    }
+    const messages = {
+        success: '🛁✨ Bath Day! Both bunnies clean. Streak: ' + (data.streak || 1),
+        partial: 'Partial bath — +' + (data.cleanlinessGain || 0) + ' cleanliness, no streak.',
+        failed_solo: 'Bath needs both bunnies! Try again when your partner is ready.',
+        failed_timeout: 'The bath went cold — nobody made it to a station.',
+        cancelled: 'Bath cancelled.',
+        server_reset: 'The server restarted mid-bath. No streak change.'
+    };
+    const tone = data.resolution === 'success' ? 'success'
+        : (data.resolution === 'partial' ? 'info'
+        : 'error');
+    showMessage(messages[data.resolution] || ('Bath resolved: ' + data.resolution), tone);
+    bathState.active = false;
+    bathState.bathId = null;
+    bathState.holdElapsedMs = 0;
+    bathState.paused = false;
+    bathState.pauseReason = null;
+    bathState.graceUntil = 0;
+    bathState.stations = { sponge: null, tap: null };
+    bathState.myStation = null;
+    bathState.sudsParticles = [];
+    bathState.lastResolvedAt = Date.now();
+}
+
+// Geometry: tub spans the lower meadow strip; sponge on left, tap on right.
+function getBathLayout() {
+    const rect = canvas ? canvas.getBoundingClientRect() : { width: 800, height: 600 };
+    const w = rect.width || 800;
+    const h = rect.height || 600;
+    const tubW = Math.min(360, w * 0.55);
+    const tubH = Math.min(120, h * 0.22);
+    const tubX = (w - tubW) / 2;
+    const tubY = h - tubH - 20;
+    const hsR = Math.min(36, tubH * 0.4);
+    return {
+        tub: { x: tubX, y: tubY, w: tubW, h: tubH },
+        sponge: { x: tubX + 20 + hsR, y: tubY + tubH / 2, r: hsR },
+        tap:    { x: tubX + tubW - 20 - hsR, y: tubY + tubH / 2, r: hsR }
+    };
+}
+
+function pointInHotspot(x, y, hotspot) {
+    const dx = x - hotspot.x;
+    const dy = y - hotspot.y;
+    return (dx * dx + dy * dy) <= (hotspot.r * hotspot.r);
+}
+
+function bathHotspotAtPoint(x, y) {
+    if (!bathState.active) return null;
+    const layout = getBathLayout();
+    if (pointInHotspot(x, y, layout.sponge)) return 'sponge';
+    if (pointInHotspot(x, y, layout.tap)) return 'tap';
+    return null;
+}
+
+function emitBathGrab(station) {
+    if (!socket || !station) return;
+    bathState.myStation = station;
+    socket.emit('bath_grab_station', { station });
+}
+
+function emitBathRelease(station) {
+    if (!socket || !station) return;
+    socket.emit('bath_release_station', { station });
+    if (bathState.myStation === station) bathState.myStation = null;
+}
+
+function drawTub() {
+    if (!bathState.active) return;
+    const { tub } = getBathLayout();
+    // tub body
+    ctx.save();
+    ctx.fillStyle = '#e8f3ff';
+    ctx.strokeStyle = '#6aa2ce';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(tub.x + 10, tub.y);
+    ctx.lineTo(tub.x + tub.w - 10, tub.y);
+    ctx.quadraticCurveTo(tub.x + tub.w, tub.y, tub.x + tub.w, tub.y + 10);
+    ctx.lineTo(tub.x + tub.w, tub.y + tub.h - 10);
+    ctx.quadraticCurveTo(tub.x + tub.w, tub.y + tub.h, tub.x + tub.w - 10, tub.y + tub.h);
+    ctx.lineTo(tub.x + 10, tub.y + tub.h);
+    ctx.quadraticCurveTo(tub.x, tub.y + tub.h, tub.x, tub.y + tub.h - 10);
+    ctx.lineTo(tub.x, tub.y + 10);
+    ctx.quadraticCurveTo(tub.x, tub.y, tub.x + 10, tub.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // water line
+    ctx.fillStyle = 'rgba(120, 180, 230, 0.55)';
+    ctx.fillRect(tub.x + 6, tub.y + 12, tub.w - 12, tub.h - 18);
+    ctx.restore();
+    drawSudsParticles();
+    drawTubHotspots();
+    drawBathProgressArc();
+    drawBathStatusBanner();
+}
+
+function drawTubHotspots() {
+    const { sponge, tap } = getBathLayout();
+    const drawHS = (hs, label, icon, station) => {
+        const isHeld = !!bathState.stations[station];
+        const heldByMe = bathState.stations[station] === myPlayerId;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(hs.x, hs.y, hs.r, 0, Math.PI * 2);
+        ctx.fillStyle = isHeld ? (heldByMe ? '#ffd28a' : '#ffa1c2') : '#ffffff';
+        ctx.strokeStyle = isHeld ? '#d36b00' : '#6a4f3a';
+        ctx.lineWidth = 3;
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#3a2a1a';
+        ctx.font = 'bold 18px Comic Sans MS, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(icon, hs.x, hs.y - 2);
+        ctx.font = '11px Comic Sans MS, sans-serif';
+        ctx.fillText(label, hs.x, hs.y + hs.r + 12);
+        ctx.restore();
+    };
+    drawHS(sponge, 'Sponge', '🧽', 'sponge');
+    drawHS(tap, 'Tap', '🚿', 'tap');
+}
+
+function drawSudsParticles() {
+    // spawn while both held & not paused
+    const bothHeld = bathState.stations.sponge && bathState.stations.tap
+        && bathState.stations.sponge !== bathState.stations.tap;
+    if (bothHeld && !bathState.paused && bathState.sudsParticles.length < 40) {
+        const { tub } = getBathLayout();
+        if (Math.random() < 0.6) {
+            bathState.sudsParticles.push({
+                x: tub.x + 20 + Math.random() * (tub.w - 40),
+                y: tub.y + tub.h - 8,
+                vy: -0.6 - Math.random() * 0.8,
+                r: 3 + Math.random() * 4,
+                life: 60 + Math.random() * 60
+            });
+        }
+    }
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    bathState.sudsParticles.forEach(p => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fill();
+        p.y += p.vy;
+        p.life -= 1;
+    });
+    ctx.restore();
+    bathState.sudsParticles = bathState.sudsParticles.filter(p => p.life > 0 && p.y > 0);
+}
+
+function drawBathProgressArc() {
+    const { tub } = getBathLayout();
+    const cx = tub.x + tub.w / 2;
+    const cy = tub.y - 18;
+    const r = 14;
+    const interp = getInterpolatedHoldElapsed();
+    const ratio = Math.max(0, Math.min(1, interp / Math.max(1, bathState.holdMs)));
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.strokeStyle = bathState.paused ? '#cc7a00' : '#3aa66a';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, -Math.PI / 2, -Math.PI / 2 + ratio * Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+}
+
+function drawBathStatusBanner() {
+    const { tub } = getBathLayout();
+    const cx = tub.x + tub.w / 2;
+    const cy = tub.y - 40;
+    let label = 'Both grab a station and HOLD!';
+    if (bathState.paused) {
+        label = bathState.pauseReason === 'partner_dropped' ? 'Partner dropped — waiting (8s grace)' : 'Paused';
+    } else if (bathState.stations.sponge && bathState.stations.tap) {
+        label = 'Hold steady…';
+    } else if (bathState.stations.sponge || bathState.stations.tap) {
+        label = 'Waiting for the other station…';
+    }
+    ctx.save();
+    ctx.font = 'bold 13px Comic Sans MS, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = 'rgba(0,0,0,0.55)';
+    const w = ctx.measureText(label).width + 16;
+    ctx.fillRect(cx - w / 2, cy - 12, w, 22);
+    ctx.fillStyle = '#fff';
+    ctx.fillText(label, cx, cy);
+    ctx.restore();
 }
 
 function onActionFailed(data) {
@@ -1307,6 +1605,12 @@ function getCanvasCoordinates(event) {
 
 function onPointerDown(event) {
     const coords = getCanvasCoordinates(event);
+    // V7: bath hotspots take precedence over bunny drag
+    const hs = bathHotspotAtPoint(coords.x, coords.y);
+    if (hs) {
+        emitBathGrab(hs);
+        return;
+    }
     startDrag(coords.x, coords.y, 'mouse');
 }
 
@@ -1316,12 +1620,21 @@ function onPointerMove(event) {
 }
 
 function onPointerUp(event) {
+    // V7: release any held bath station
+    if (bathState.myStation) {
+        emitBathRelease(bathState.myStation);
+    }
     endDrag();
 }
 
 function onTouchStart(event) {
     event.preventDefault();
     const coords = getCanvasCoordinates(event);
+    const hs = bathHotspotAtPoint(coords.x, coords.y);
+    if (hs) {
+        emitBathGrab(hs);
+        return;
+    }
     startDrag(coords.x, coords.y, 'touch');
 }
 
@@ -1333,6 +1646,9 @@ function onTouchMove(event) {
 
 function onTouchEnd(event) {
     event.preventDefault();
+    if (bathState.myStation) {
+        emitBathRelease(bathState.myStation);
+    }
     endDrag();
 }
 
@@ -1793,6 +2109,7 @@ function render() {
     drawDraggableBabies();
     drawActiveParticles();
     drawWeatherEffects();
+    drawTub(); // V7: Bubble Bath Duet — only draws when bathState.active
     drawUI();
 }
 

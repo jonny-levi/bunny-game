@@ -1271,6 +1271,21 @@
                 max-width: calc(100vw - 40px);
             }
         }
+
+        /* V7 Bubble Bath Duet — ambient theming for the tub overlay (canvas-rendered).
+           Color tokens consumed by JS via getComputedStyle if needed in the future. */
+        :root {
+            --bath-tub-fill: #e8f3ff;
+            --bath-tub-stroke: #6aa2ce;
+            --bath-water: rgba(120, 180, 230, 0.55);
+            --bath-suds: rgba(255, 255, 255, 0.85);
+            --bath-progress-track: rgba(255, 255, 255, 0.7);
+            --bath-progress-fill: #3aa66a;
+            --bath-progress-paused: #cc7a00;
+            --bath-station-mine: #ffd28a;
+            --bath-station-partner: #ffa1c2;
+            --bath-station-idle: #ffffff;
+        }
     </style>
 </head>
 <body>

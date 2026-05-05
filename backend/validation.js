@@ -63,9 +63,11 @@ class GameValidator {
     
     static validateGameAction(action, data = {}) {
         const validActions = [
-            'feed_baby', 'play_with_baby', 'sleep_baby', 
-            'clean_baby', 'pet_baby', 'hatch_egg', 
-            'harvest_carrots', 'decay_needs'
+            'feed_baby', 'play_with_baby', 'sleep_baby',
+            'clean_baby', 'pet_baby', 'hatch_egg',
+            'harvest_carrots', 'decay_needs',
+            // V7 Bubble Bath Duet
+            'bath_grab_station', 'bath_release_station'
         ];
         
         if (!validActions.includes(action)) {
@@ -83,9 +85,24 @@ class GameValidator {
             case 'hatch_egg':
                 this.validateHatchAction(data);
                 break;
+            case 'bath_grab_station':
+            case 'bath_release_station':
+                this.validateBathStationAction(data);
+                break;
         }
-        
+
         return { action, data };
+    }
+
+    // V7: Validate bath station action data shape
+    static validateBathStationAction(data) {
+        if (!data || typeof data !== 'object') {
+            throw new ValidationError('Bath station action requires an object payload', 'data');
+        }
+        if (typeof data.station !== 'string' || !['sponge', 'tap'].includes(data.station)) {
+            throw new ValidationError('Bath station must be "sponge" or "tap"', 'station');
+        }
+        return data;
     }
     
     static validateFeedAction(data) {

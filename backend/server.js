@@ -241,12 +241,22 @@ const GAME_CONFIG = {
         careThreshold: 60, // Average care level needed for fast growth
         growthPointsPerStage: 100 // Points needed to advance to next stage
     },
+    // NEW: V7 Bubble Bath Duet — co-op cleanliness gate
+    BATH: {
+        triggerCleanliness: 30,         // Auto-trigger when any meadow baby drops below this
+        windowMs: 60000,                 // 60s to start holding both stations
+        holdMs: 5000,                    // Both must hold for 5s to succeed
+        graceMs: 8000,                   // Grace if a player drops connection mid-bath
+        cooldownMs: 600000,              // 10 minutes after a success before another auto-trigger
+        cleanlinessReward: 60,           // Cleanliness points on full success
+        stations: ['sponge', 'tap']
+    },
     // NEW: Shop system configuration
     SHOP: {
         items: {
-            toy_ball: { 
-                name: 'Bouncy Ball', 
-                cost: 5, 
+            toy_ball: {
+                name: 'Bouncy Ball',
+                cost: 5,
                 effect: { happiness: 10 },
                 type: 'consumable',
                 description: 'A fun ball that boosts happiness when used!'
@@ -278,6 +288,14 @@ const GAME_CONFIG = {
                 effect: { sleep_quality: 1.3, fear_reduction: 10 },
                 type: 'decoration',
                 description: 'Helps bunnies sleep peacefully through the night.'
+            },
+            // V7: Optional shop trigger for the Bubble Bath Duet — bypasses cooldown
+            bubble_bath: {
+                name: 'Bubble Bath',
+                cost: 6,
+                effect: { trigger_bath: true },
+                type: 'consumable',
+                description: 'Fills the tub with bubbles — both bunnies must man their stations!'
             }
         }
     }
@@ -358,8 +376,14 @@ class GameRoom {
                 connectionStartTime: Date.now(),
                 actionsPerPlayer: {},
                 lastTogetherFeed: 0,
-                playTimeStarted: Date.now()
+                playTimeStarted: Date.now(),
+                // V7 Bubble Bath Duet
+                bathsCompleted: 0,
+                bathStreak: 0,
+                lastBathAt: 0
             },
+            // V7 Bubble Bath Duet — transient lifecycle, never persisted
+            bath: null,
             // NEW: Egg spawning system
             eggSpawning: {
                 lastNewEggTime: 0,
@@ -419,9 +443,28 @@ class GameRoom {
                     totalPlayTime: 0,
                     actionsPerPlayer: {},
                     lastTogetherFeed: 0,
-                    playTimeStarted: now
+                    playTimeStarted: now,
+                    bathsCompleted: 0,
+                    bathStreak: 0,
+                    lastBathAt: 0
+                };
+            } else {
+                // V7 migration: ensure new bath fields exist on legacy saves
+                if (typeof gameState.coupleStats.bathsCompleted !== 'number') gameState.coupleStats.bathsCompleted = 0;
+                if (typeof gameState.coupleStats.bathStreak !== 'number') gameState.coupleStats.bathStreak = 0;
+                if (typeof gameState.coupleStats.lastBathAt !== 'number') gameState.coupleStats.lastBathAt = 0;
+            }
+
+            // V7: bath is always transient — drop any persisted value defensively.
+            // If a bath was present in the saved file, mark a one-shot flag so the
+            // first broadcast emits a synthetic bath_resolved { server_reset } event.
+            if (gameState.bath) {
+                gameState._pendingBathServerReset = {
+                    bathId: gameState.bath.id || `bath_unknown_${now}`,
+                    participatingBabies: gameState.bath.participatingBabies || []
                 };
             }
+            gameState.bath = null;
 
             // NEW: Initialize egg spawning system for legacy saves
             if (!gameState.eggSpawning) {
@@ -638,10 +681,44 @@ class GameRoom {
             this.players.get(playerId).connected = false;
         }
 
+        // V7: If a disconnecting player was holding a bath station, arm the
+        // grace timer immediately rather than waiting for the next tickBath.
+        this.handleBathHolderDisconnect(playerId);
+
         // Stop game loop and clean up all intervals if no players connected
         const connectedPlayers = Array.from(this.players.values()).filter(p => p.connected);
         if (connectedPlayers.length === 0) {
             this.cleanup();
+        }
+    }
+
+    // V7: Synchronous bath grace-pause when a holder disconnects.
+    // Mirrors the logic inside tickBath but fires immediately.
+    handleBathHolderDisconnect(playerId) {
+        try {
+            const bath = this.gameState && this.gameState.bath;
+            if (!bath || bath.resolution) return;
+            let wasHolder = false;
+            for (const station of GAME_CONFIG.BATH.stations) {
+                if (bath.stations[station] === playerId) {
+                    wasHolder = true;
+                    break;
+                }
+            }
+            if (!wasHolder) return;
+            if (bath.graceUntil) return; // already paused
+
+            const now = Date.now();
+            this._flushHoldDelta(now);
+            bath.graceUntil = now + GAME_CONFIG.BATH.graceMs;
+            this.broadcastEvent('bath_progress', {
+                bathId: bath.id,
+                paused: true,
+                reason: 'partner_dropped',
+                graceUntil: bath.graceUntil
+            });
+        } catch (error) {
+            console.error(`handleBathHolderDisconnect error in room ${this.roomCode}:`, error);
         }
     }
 
@@ -690,7 +767,9 @@ class GameRoom {
                 { name: 'updateGarden', fn: () => this.updateGarden() },
                 { name: 'processActionQueue', fn: () => this.processActionQueue() },
                 { name: 'autoSaveIfNeeded', fn: () => this.autoSaveIfNeeded() },
-                { name: 'broadcastCoupleStats', fn: () => this.broadcastCoupleStats() } // NEW: Periodic couple stats broadcast
+                { name: 'broadcastCoupleStats', fn: () => this.broadcastCoupleStats() }, // NEW: Periodic couple stats broadcast
+                { name: 'tickBath', fn: () => this.tickBath() }, // V7: Drive bath lifecycle each loop
+                { name: 'checkBathTrigger', fn: () => this.checkBathTrigger() } // V7: Auto-trigger when cleanliness drops
             ];
 
             let successfulUpdates = 0;
@@ -1656,6 +1735,389 @@ class GameRoom {
     }
 
     // Communication methods
+    // ===== V7 BUBBLE BATH DUET =====
+    // Transient bath lifecycle. Never persisted (loadSavedGameState drops gameState.bath on load).
+    // Resolutions: success | partial | failed_solo | failed_timeout | cancelled | server_reset
+    checkBathTrigger() {
+        try {
+            if (this.gameState.bath) return; // already running
+            const now = Date.now();
+            const stats = this.gameState.coupleStats;
+            if (stats && stats.lastBathAt && (now - stats.lastBathAt) < GAME_CONFIG.BATH.cooldownMs) return;
+
+            // Need at least one meadow baby with cleanliness < threshold AND not an egg.
+            const eligible = (this.gameState.babies || []).filter(b => {
+                if (!b || b.stage === 'egg') return false;
+                if (b.inCave === true) return false;
+                return typeof b.cleanliness === 'number' && b.cleanliness < GAME_CONFIG.BATH.triggerCleanliness;
+            });
+            if (eligible.length === 0) return;
+
+            this.startBath('auto');
+        } catch (error) {
+            console.error(`checkBathTrigger error in room ${this.roomCode}:`, error);
+        }
+    }
+
+    startBath(reason = 'auto') {
+        try {
+            if (this.gameState.bath) return false;
+            const now = Date.now();
+            // Snapshot meadow-only participating babies
+            const participatingBabies = (this.gameState.babies || [])
+                .filter(b => b && b.stage !== 'egg' && b.inCave !== true)
+                .map(b => b.id);
+            if (participatingBabies.length === 0) return false;
+
+            this.gameState.bath = {
+                id: `bath_${now}_${Math.random().toString(36).slice(2, 8)}`,
+                reason,                       // 'auto' | 'shop'
+                startedAt: now,
+                expiresAt: now + GAME_CONFIG.BATH.windowMs,
+                stations: { sponge: null, tap: null }, // playerId
+                stationGrabAt: { sponge: 0, tap: 0 },
+                holdElapsedMs: 0,
+                lastTickAt: now,
+                bothHeldStartedAt: 0,
+                participatingBabies,
+                graceUntil: 0,                 // grace timer when one player drops
+                everHeldAny: false,            // true if any station was ever grabbed during the window
+                resolution: null
+            };
+
+            this.broadcastEvent('bath_available', {
+                bathId: this.gameState.bath.id,
+                reason,
+                expiresAt: this.gameState.bath.expiresAt,
+                participatingBabies,
+                stations: GAME_CONFIG.BATH.stations,
+                holdMs: GAME_CONFIG.BATH.holdMs
+            });
+            return true;
+        } catch (error) {
+            console.error(`startBath error in room ${this.roomCode}:`, error);
+            return false;
+        }
+    }
+
+    grabStation(playerId, station) {
+        try {
+            if (!this.gameState.bath) return { success: false, message: 'No bath in progress' };
+            if (!GAME_CONFIG.BATH.stations.includes(station)) {
+                return { success: false, message: 'Unknown station' };
+            }
+            const bath = this.gameState.bath;
+            const now = Date.now();
+
+            // Already holding the requested station? no-op
+            if (bath.stations[station] === playerId) {
+                return { success: true, station, alreadyHeld: true };
+            }
+            // Already holding the OTHER station? release that first to avoid solo-claim of both
+            for (const s of GAME_CONFIG.BATH.stations) {
+                if (s !== station && bath.stations[s] === playerId) {
+                    bath.stations[s] = null;
+                    bath.stationGrabAt[s] = 0;
+                }
+            }
+
+            // Concurrent claim tiebreaker: if another player already holds this station,
+            // and their grab was within 50ms, redirect the new claimant to the other station.
+            const otherStation = station === 'sponge' ? 'tap' : 'sponge';
+            if (bath.stations[station] && bath.stations[station] !== playerId) {
+                const dt = now - (bath.stationGrabAt[station] || 0);
+                if (dt <= 50 && !bath.stations[otherStation]) {
+                    // redirect to the other station
+                    bath.stations[otherStation] = playerId;
+                    bath.stationGrabAt[otherStation] = now;
+                    bath.everHeldAny = true;
+                    this.broadcastEvent('bath_grab_station', {
+                        bathId: bath.id,
+                        station: otherStation,
+                        playerId,
+                        redirected: true
+                    });
+                    this._maybeStartBothHeld();
+                    return { success: true, station: otherStation, redirected: true };
+                }
+                // station genuinely taken — reject
+                return { success: false, message: 'Station already held' };
+            }
+
+            bath.stations[station] = playerId;
+            bath.stationGrabAt[station] = now;
+            bath.everHeldAny = true;
+            // any new grab clears the grace timer
+            bath.graceUntil = 0;
+
+            this.broadcastEvent('bath_grab_station', {
+                bathId: bath.id,
+                station,
+                playerId
+            });
+            this._maybeStartBothHeld();
+            return { success: true, station };
+        } catch (error) {
+            console.error(`grabStation error in room ${this.roomCode}:`, error);
+            return { success: false, message: 'Failed to grab station' };
+        }
+    }
+
+    releaseStation(playerId, station) {
+        try {
+            if (!this.gameState.bath) return { success: false, message: 'No bath in progress' };
+            const bath = this.gameState.bath;
+            if (!GAME_CONFIG.BATH.stations.includes(station)) {
+                return { success: false, message: 'Unknown station' };
+            }
+            if (bath.stations[station] !== playerId) {
+                return { success: false, message: 'Not holding this station' };
+            }
+            // Flush any accumulated both-held time before releasing
+            this._flushHoldDelta(Date.now());
+            bath.stations[station] = null;
+            bath.stationGrabAt[station] = 0;
+            // bothHeldStartedAt is already cleared by _flushHoldDelta when the both-held condition breaks
+
+            this.broadcastEvent('bath_release_station', {
+                bathId: bath.id,
+                station,
+                playerId
+            });
+            // Re-evaluate both-held in case the released station was actually held by a different player
+            // (which shouldn't happen given the check above, but defensive).
+            this._maybeStartBothHeld();
+            return { success: true };
+        } catch (error) {
+            console.error(`releaseStation error in room ${this.roomCode}:`, error);
+            return { success: false, message: 'Failed to release station' };
+        }
+    }
+
+    _flushHoldDelta(now) {
+        const bath = this.gameState.bath;
+        if (!bath) return;
+        if (bath.bothHeldStartedAt && !bath.graceUntil) {
+            const dt = Math.max(0, now - bath.bothHeldStartedAt);
+            bath.holdElapsedMs = Math.min(GAME_CONFIG.BATH.holdMs, bath.holdElapsedMs + dt);
+        }
+        // After flushing, reset the start marker; _maybeStartBothHeld will re-set it if both still held.
+        bath.bothHeldStartedAt = 0;
+    }
+
+    _maybeStartBothHeld() {
+        const bath = this.gameState.bath;
+        if (!bath) return;
+        if (bath.stations.sponge && bath.stations.tap && bath.stations.sponge !== bath.stations.tap) {
+            if (!bath.bothHeldStartedAt) {
+                bath.bothHeldStartedAt = Date.now();
+            }
+        } else {
+            bath.bothHeldStartedAt = 0;
+        }
+    }
+
+    tickBath() {
+        try {
+            // If a bath was active when the server shut down, emit a synthetic
+            // bath_resolved { server_reset } once a player is connected.
+            if (this.gameState._pendingBathServerReset && this.getConnectedPlayerCount() > 0) {
+                const pending = this.gameState._pendingBathServerReset;
+                this.broadcastEvent('bath_resolved', {
+                    bathId: pending.bathId,
+                    resolution: 'server_reset',
+                    cleanlinessGain: 0,
+                    participants: [],
+                    participatingBabies: pending.participatingBabies || [],
+                    streak: this.gameState.coupleStats ? this.gameState.coupleStats.bathStreak : 0,
+                    bathsCompleted: this.gameState.coupleStats ? this.gameState.coupleStats.bathsCompleted : 0,
+                    streakChanged: false,
+                    memoryRecorded: false,
+                    holdElapsedMs: 0,
+                    holdMs: GAME_CONFIG.BATH.holdMs
+                });
+                delete this.gameState._pendingBathServerReset;
+            }
+
+            const bath = this.gameState.bath;
+            if (!bath) return;
+            if (bath.resolution) return; // resolved, awaiting cleanup
+            const now = Date.now();
+
+            // Detect held-by-disconnected-player and start grace
+            for (const station of GAME_CONFIG.BATH.stations) {
+                const holderId = bath.stations[station];
+                if (holderId) {
+                    const player = this.players.get(holderId);
+                    if (!player || !player.connected) {
+                        if (!bath.graceUntil) {
+                            // Flush any accumulated both-held time up to "now" before pausing.
+                            this._flushHoldDelta(now);
+                            bath.graceUntil = now + GAME_CONFIG.BATH.graceMs;
+                            this.broadcastEvent('bath_progress', {
+                                bathId: bath.id,
+                                paused: true,
+                                reason: 'partner_dropped',
+                                graceUntil: bath.graceUntil
+                            });
+                        } else if (now > bath.graceUntil) {
+                            // Grace expired — release the dropped player's station
+                            bath.stations[station] = null;
+                            bath.stationGrabAt[station] = 0;
+                            bath.graceUntil = 0;
+                            this.broadcastEvent('bath_release_station', {
+                                bathId: bath.id,
+                                station,
+                                playerId: holderId,
+                                reason: 'grace_expired'
+                            });
+                        }
+                    }
+                }
+            }
+
+            this._maybeStartBothHeld();
+
+            // Flush continuously-held time into holdElapsedMs and re-arm the start marker.
+            if (bath.bothHeldStartedAt && !bath.graceUntil) {
+                this._flushHoldDelta(now);
+                this._maybeStartBothHeld(); // re-arm since both are still held
+                this.broadcastEvent('bath_progress', {
+                    bathId: bath.id,
+                    paused: false,
+                    holdElapsedMs: bath.holdElapsedMs,
+                    holdMs: GAME_CONFIG.BATH.holdMs
+                });
+
+                if (bath.holdElapsedMs >= GAME_CONFIG.BATH.holdMs) {
+                    this.resolveBath('success');
+                    bath.lastTickAt = now;
+                    return;
+                }
+            }
+            bath.lastTickAt = now;
+
+            // Window timeout
+            if (now > bath.expiresAt) {
+                // Decide partial vs failed_solo vs failed_timeout.
+                // partial: any both-held progress accumulated.
+                // failed_solo: at least one station was ever grabbed but never both-held.
+                // failed_timeout: nobody ever touched a station.
+                if (bath.holdElapsedMs > 0) {
+                    this.resolveBath('partial');
+                } else if (bath.everHeldAny) {
+                    this.resolveBath('failed_solo');
+                } else {
+                    this.resolveBath('failed_timeout');
+                }
+            }
+        } catch (error) {
+            console.error(`tickBath error in room ${this.roomCode}:`, error);
+        }
+    }
+
+    async resolveBath(resolution) {
+        try {
+            const bath = this.gameState.bath;
+            if (!bath || bath.resolution) return;
+            bath.resolution = resolution;
+            const now = Date.now();
+            const stats = this.gameState.coupleStats;
+            const participants = [];
+            for (const s of GAME_CONFIG.BATH.stations) {
+                if (bath.stations[s] && !participants.includes(bath.stations[s])) participants.push(bath.stations[s]);
+            }
+
+            let cleanlinessGain = 0;
+            let streakChanged = false;
+            let memoryRecorded = false;
+
+            if (resolution === 'success') {
+                cleanlinessGain = GAME_CONFIG.BATH.cleanlinessReward;
+                if (stats) {
+                    stats.bathsCompleted = (stats.bathsCompleted || 0) + 1;
+                    stats.bathStreak = (stats.bathStreak || 0) + 1;
+                    stats.lastBathAt = now;
+                    streakChanged = true;
+                }
+            } else if (resolution === 'partial') {
+                const ratio = Math.max(0, Math.min(1, bath.holdElapsedMs / GAME_CONFIG.BATH.holdMs));
+                cleanlinessGain = Math.round(GAME_CONFIG.BATH.cleanlinessReward * ratio);
+                if (stats) {
+                    // streak NOT incremented on partial
+                    stats.lastBathAt = now;
+                }
+            } else {
+                // failed_solo, failed_timeout, cancelled, server_reset → no cleanliness change, no streak change
+                cleanlinessGain = 0;
+            }
+
+            // Apply cleanliness gain to participating meadow babies only
+            if (cleanlinessGain > 0 && Array.isArray(bath.participatingBabies)) {
+                for (const babyId of bath.participatingBabies) {
+                    const baby = this.gameState.babies.find(b => b.id === babyId);
+                    if (baby && baby.stage !== 'egg' && baby.inCave !== true) {
+                        baby.cleanliness = Math.max(0, Math.min(100, Math.round((baby.cleanliness || 0) + cleanlinessGain)));
+                        baby.lastCleaned = now;
+                    }
+                }
+            }
+
+            // Memory + photo only on full success
+            if (resolution === 'success') {
+                try {
+                    if (typeof memoryManager !== 'undefined' && memoryManager.createMemory) {
+                        await memoryManager.createMemory(this.roomCode, {
+                            type: 'cooperative',
+                            title: 'Bath Day!',
+                            description: `Both bunnies scrubbed the babies clean together — bath streak ${stats ? stats.bathStreak : 1}.`,
+                            participants,
+                            babies: bath.participatingBabies || [],
+                            metadata: {
+                                memoryType: 'bath_day',
+                                bathId: bath.id,
+                                streak: stats ? stats.bathStreak : 1,
+                                reason: bath.reason,
+                                cleanlinessGain
+                            }
+                        });
+                        memoryRecorded = true;
+                    }
+                    if (typeof memoryManager !== 'undefined' && memoryManager.capturePhoto) {
+                        await memoryManager.capturePhoto(this.roomCode, {
+                            trigger: 'bath_day',
+                            participants,
+                            babies: bath.participatingBabies || [],
+                            metadata: { bathId: bath.id }
+                        });
+                    }
+                } catch (memErr) {
+                    console.error(`resolveBath memory error in room ${this.roomCode}:`, memErr);
+                }
+            }
+
+            this.broadcastEvent('bath_resolved', {
+                bathId: bath.id,
+                resolution,
+                cleanlinessGain,
+                participants,
+                participatingBabies: bath.participatingBabies || [],
+                streak: stats ? stats.bathStreak : 0,
+                bathsCompleted: stats ? stats.bathsCompleted : 0,
+                streakChanged,
+                memoryRecorded,
+                holdElapsedMs: bath.holdElapsedMs,
+                holdMs: GAME_CONFIG.BATH.holdMs
+            });
+
+            // Clear transient state
+            this.gameState.bath = null;
+        } catch (error) {
+            console.error(`resolveBath error in room ${this.roomCode}:`, error);
+            this.gameState.bath = null;
+        }
+    }
+
     broadcastGameState() {
         // NEW: Enhance game state with personality info and positions
         const enhancedGameState = {
@@ -2110,13 +2572,25 @@ class GameRoom {
         
         // Apply item effect
         let effectResult = null;
-        if (item.type === 'consumable') {
+        // V7: bubble_bath triggers the bath duet directly — no specific baby targeting required.
+        if (item.type === 'consumable' && item.effect && item.effect.trigger_bath === true) {
+            if (this.gameState.bath) {
+                return { success: false, message: 'A bath is already in progress!' };
+            }
+            const started = this.startBath('shop');
+            if (!started) {
+                return { success: false, message: 'Could not start bath right now (no eligible babies in the meadow).' };
+            }
+            // Consume the item AFTER successful start
+            playerInventory[itemId]--;
+            effectResult = { success: true, message: `${item.name} dropped in the tub! Both players, take a station!` };
+        } else if (item.type === 'consumable') {
             if (!targetBaby) {
                 return { success: false, message: 'This item requires selecting a baby!' };
             }
-            
+
             effectResult = this.applyItemEffect(targetBaby, item);
-            
+
             // Consume the item
             playerInventory[itemId]--;
         } else if (item.type === 'decoration') {
@@ -3681,6 +4155,49 @@ io.on('connection', (socket) => {
         } catch (error) {
             console.error('Get inventory error:', error);
             socket.emit('action_failed', { message: 'Failed to get inventory' });
+        }
+    });
+
+    // V7 Bubble Bath Duet — press-and-hold station handlers
+    socket.on('bath_grab_station', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+
+            GameValidator.validateRateLimit(playerData.playerId, 'bath_grab_station', rateLimits);
+            GameValidator.validateGameAction('bath_grab_station', data);
+
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+
+            const result = room.grabStation(playerData.playerId, data.station);
+            if (!result.success) {
+                socket.emit('action_failed', result);
+            }
+        } catch (error) {
+            console.error('bath_grab_station error:', error);
+            socket.emit('action_failed', { message: error && error.message ? error.message : 'Failed to grab station' });
+        }
+    });
+
+    socket.on('bath_release_station', (data = {}) => {
+        try {
+            const playerData = playerSockets.get(socket.id);
+            if (!playerData) return;
+
+            GameValidator.validateRateLimit(playerData.playerId, 'bath_release_station', rateLimits);
+            GameValidator.validateGameAction('bath_release_station', data);
+
+            const room = rooms.get(playerData.roomCode);
+            if (!room) return;
+
+            const result = room.releaseStation(playerData.playerId, data.station);
+            if (!result.success && result.message !== 'Not holding this station') {
+                socket.emit('action_failed', result);
+            }
+        } catch (error) {
+            console.error('bath_release_station error:', error);
+            socket.emit('action_failed', { message: error && error.message ? error.message : 'Failed to release station' });
         }
     });
 

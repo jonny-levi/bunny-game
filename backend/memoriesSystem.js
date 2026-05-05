@@ -69,6 +69,14 @@ class MemoriesSystem {
                 importance: 'low',
                 category: 'care'
             },
+            // V7: Bubble Bath Duet — fires on a successful co-op bath
+            'bath_day': {
+                name: 'Bath Day',
+                description: 'Both bunnies scrubbed the babies clean together',
+                icon: '🛁',
+                importance: 'medium',
+                category: 'cooperation'
+            },
             'first_playtime': {
                 name: 'Playtime Fun',
                 description: 'First time playing and having a blast',
