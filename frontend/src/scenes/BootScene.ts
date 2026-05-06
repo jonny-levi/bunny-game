@@ -4,6 +4,13 @@ import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../config';
 export class BootScene extends Phaser.Scene {
   constructor() { super({ key: 'BootScene' }); }
 
+  preload() {
+    this.load.svg('baby-bunny-sleeping', '/assets/bunnies/baby-bunny-sleeping.svg', {
+      width: 120,
+      height: 120,
+    });
+  }
+
   create() {
     const cx = GAME_WIDTH / 2;
     const cy = GAME_HEIGHT / 2;
