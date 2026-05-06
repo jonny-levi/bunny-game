@@ -19,6 +19,7 @@ export class Bunny extends Phaser.GameObjects.Container {
   private rightArm: Phaser.GameObjects.Ellipse;
   private tail: Phaser.GameObjects.Ellipse;
   private belly: Phaser.GameObjects.Ellipse;
+  private sleepingAsset: Phaser.GameObjects.Image | null = null;
 
   public bunnyId: string;
   public bunnyName: string;
@@ -223,8 +224,29 @@ export class Bunny extends Phaser.GameObjects.Container {
   playSleeping() {
     this.stopAnim();
     this.animState = 'sleeping';
-    this.leftEye.setScale(1, 0.15);
-    this.rightEye.setScale(1, 0.15);
+
+    if (this.scene.textures.exists('baby-bunny-sleeping') && this.stage !== 'egg') {
+      this.setDrawnBodyVisible(false);
+      const s = this.getStageScale();
+      this.sleepingAsset = this.scene.add.image(0, -2 * s, 'baby-bunny-sleeping');
+      this.sleepingAsset.setDisplaySize(96 * s, 96 * s);
+      this.sleepingAsset.setDepth(2);
+      this.add(this.sleepingAsset);
+
+      this.scene.tweens.add({
+        targets: this.sleepingAsset,
+        scaleX: this.sleepingAsset.scaleX * 1.03,
+        scaleY: this.sleepingAsset.scaleY * 1.03,
+        duration: 1300,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    } else {
+      this.leftEye.setScale(1, 0.15);
+      this.rightEye.setScale(1, 0.15);
+    }
+
     this.zzz = this.scene.add.text(30, -60, '💤', { fontSize: '22px' });
     this.add(this.zzz);
     this.scene.tweens.add({
@@ -280,9 +302,15 @@ export class Bunny extends Phaser.GameObjects.Container {
   stopAnim() {
     if (this.bounceTimer) { this.bounceTimer.destroy(); this.bounceTimer = null; }
     if (this.zzz) { this.zzz.destroy(); this.zzz = null; }
+    if (this.sleepingAsset) {
+      this.scene.tweens.killTweensOf(this.sleepingAsset);
+      this.sleepingAsset.destroy();
+      this.sleepingAsset = null;
+    }
     this.scene.tweens.killTweensOf(this);
     this.scene.tweens.killTweensOf(this.leftEar);
     this.scene.tweens.killTweensOf(this.rightEar);
+    this.setDrawnBodyVisible(true);
     this.leftEye.setScale(1, 1);
     this.rightEye.setScale(1, 1);
     this.mouth.setAngle(0);
@@ -292,6 +320,14 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.setScale(1);
     const tint = BUNNY_COLORS[this.color] || 0xfff5ee;
     this.bodyShape.setFillStyle(tint);
+  }
+
+  private setDrawnBodyVisible(visible: boolean) {
+    this.list.forEach(child => {
+      if (child !== this.nameLabel && child !== this.zzz && child !== this.sleepingAsset) {
+        (child as Phaser.GameObjects.GameObject & { setVisible?: (value: boolean) => void }).setVisible?.(visible);
+      }
+    });
   }
 
   setInteractable(onClick: () => void) {
