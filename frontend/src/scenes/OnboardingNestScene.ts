@@ -13,6 +13,7 @@ import {
   type BunnyAssetRef,
   type CharacterIdentity,
 } from '../state/identityRegistry';
+import { playCrack, playEggTap, playHatch } from '../utils/sound';
 
 const PLAY_AREA_HEIGHT = 480;
 
@@ -206,6 +207,8 @@ export class OnboardingNestScene extends Phaser.Scene {
     const egg = recordTap();
     const stage = getCrackStage(egg.taps);
 
+    playEggTap();
+
     // Tap feedback: shake + small squash
     this.tweens.killTweensOf(this.eggContainer);
     this.tweens.add({
@@ -236,7 +239,9 @@ export class OnboardingNestScene extends Phaser.Scene {
     });
 
     if (stage > beforeStage) {
+      playCrack();
       this.refreshCracks(egg.taps, true);
+      this.emitCrackParticles();
     }
     this.refreshProgress(egg.taps);
     this.tapHint.setText(`Taps: ${egg.taps} / ${HATCH_TAPS}`);
@@ -274,19 +279,46 @@ export class OnboardingNestScene extends Phaser.Scene {
     }
   }
 
+
+  private emitCrackParticles() {
+    const cx = this.eggContainer.x;
+    const cy = this.eggContainer.y;
+    for (let i = 0; i < 6; i++) {
+      const chip = this.add.circle(cx, cy, Phaser.Math.Between(2, 4), 0xfff1b8, 0.9).setDepth(6);
+      this.tweens.add({
+        targets: chip,
+        x: cx + Phaser.Math.Between(-44, 44),
+        y: cy + Phaser.Math.Between(-46, 18),
+        alpha: 0,
+        scale: 0.2,
+        duration: Phaser.Math.Between(360, 620),
+        ease: 'Cubic.easeOut',
+        onComplete: () => chip.destroy(),
+      });
+    }
+  }
+
   private startHatch() {
     this.hatching = true;
     this.tapHint.setText('💖 The egg is hatching! 💖');
+    playHatch();
     const baby = performHatch();
 
     this.tweens.killTweensOf(this.eggContainer);
     this.tweens.add({
       targets: this.eggContainer,
       angle: { from: -10, to: 10 },
+      scaleX: { from: 1, to: 1.12 },
+      scaleY: { from: 1, to: 0.9 },
       duration: 80,
       yoyo: true,
       repeat: 8,
-      onComplete: () => this.revealBaby(baby),
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        this.eggContainer.setAngle(0);
+        this.eggContainer.setScale(1);
+        this.revealBaby(baby);
+      },
     });
   }
 
@@ -296,6 +328,8 @@ export class OnboardingNestScene extends Phaser.Scene {
 
     // Flash + shrink the eggshell
     const flash = this.add.rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0).setDepth(10);
+    this.cameras.main.flash(220, 255, 245, 210);
+    this.cameras.main.shake(160, 0.004);
     this.tweens.add({
       targets: flash, alpha: 0.85, duration: 200, yoyo: true,
       onComplete: () => flash.destroy(),
@@ -346,7 +380,8 @@ export class OnboardingNestScene extends Phaser.Scene {
   }
 
   private handoffToRooms() {
-    this.cameras.main.fadeOut(350);
+    this.tapHint.setText('Welcome home, little bunny!');
+    this.cameras.main.fadeOut(450, 255, 220, 235);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.scene.start('LivingRoomScene');
       this.scene.launch('HUDScene');
