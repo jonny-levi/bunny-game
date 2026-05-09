@@ -7,6 +7,7 @@ import { getIdentities, type CharacterIdentity } from '../state/identityRegistry
 import { applyDecay, catchUpNeeds, legacyStatsFromNeeds, NEEDS_BALANCE, normalizeNeeds, readNeedsState, writeNeedsState, type NeedsState } from '../state/needs';
 import type { LifeStage } from '../config';
 import { isCareAction, type CareAction } from '../game/actions';
+import { playBreed, playClean, playFeed, playMedicine, playPlay, playSleep } from '../utils/sound';
 
 const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
 
@@ -152,11 +153,12 @@ export abstract class RoomScene extends Phaser.Scene {
     const emojis: Record<CareAction, string> = { feed: '🍳', clean: '🛁', play: '🎾', sleep: '💤', medicine: '💊', breed: '💕' };
 
     switch (action) {
-      case 'feed': b.hunger = Math.min(100, b.hunger + 25); break;
-      case 'clean': b.cleanliness = Math.min(100, b.cleanliness + 30); break;
-      case 'play': b.happiness = Math.min(100, b.happiness + 20); break;
-      case 'sleep': b.energy = Math.min(100, b.energy + 30); break;
-      case 'medicine': b.health = Math.min(100, b.health + 20); break;
+      case 'feed': b.hunger = Math.min(100, b.hunger + 25); playFeed(); break;
+      case 'clean': b.cleanliness = Math.min(100, b.cleanliness + 30); playClean(); break;
+      case 'play': b.happiness = Math.min(100, b.happiness + 20); playPlay(); break;
+      case 'sleep': b.energy = Math.min(100, b.energy + 30); playSleep(); break;
+      case 'medicine': b.health = Math.min(100, b.health + 20); playMedicine(); break;
+      case 'breed': playBreed(); break;
     }
 
     if ((b.id === 'baby' || b.stage === 'baby') && !isServerBackedBunny(b)) {
