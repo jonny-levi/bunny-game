@@ -5,9 +5,18 @@ export class BootScene extends Phaser.Scene {
   constructor() { super({ key: 'BootScene' }); }
 
   preload() {
-    this.load.svg('baby-bunny-sleeping', '/assets/bunnies/baby-bunny-sleeping.svg', {
-      width: 120,
-      height: 120,
+    const bunnyAssets = [
+      { key: 'baby-bunny-normal', path: '/assets/bunnies/baby-bunny-normal.svg', size: 120 },
+      { key: 'baby-bunny-happy', path: '/assets/bunnies/baby-bunny-happy.svg', size: 120 },
+      { key: 'baby-bunny-sleeping', path: '/assets/bunnies/baby-bunny-sleeping.svg', size: 120 },
+      { key: 'adult-bunny', path: '/assets/bunnies/adult-bunny.svg', size: 160 },
+    ];
+
+    bunnyAssets.forEach(({ key, path, size }) => {
+      this.load.svg(key, path, {
+        width: size,
+        height: size,
+      });
     });
   }
 
