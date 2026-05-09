@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { Bunny } from '../objects/Bunny';
 import { wsClient, type BunnyState } from '../network/WebSocketClient';
+import { saveClient, type CareAction as SaveCareAction } from '../network/SaveClient';
 import { getDayNightTint, getSeason } from '../utils/time';
 import { getIdentities, type CharacterIdentity } from '../state/identityRegistry';
 import { applyDecay, catchUpNeeds, legacyStatsFromNeeds, NEEDS_BALANCE, normalizeNeeds, readNeedsState, writeNeedsState, type NeedsState } from '../state/needs';
@@ -145,7 +146,7 @@ export abstract class RoomScene extends Phaser.Scene {
     });
   }
 
-  protected applyAction(action: CareAction, bunnyId: string) {
+  protected async applyAction(action: CareAction, bunnyId: string) {
     const b = gameBunnies.find(x => x.id === bunnyId);
     if (!b) return;
 
@@ -153,12 +154,34 @@ export abstract class RoomScene extends Phaser.Scene {
     const emojis: Record<CareAction, string> = { feed: '🍳', clean: '🛁', play: '🎾', sleep: '💤', medicine: '💊', breed: '💕' };
 
     switch (action) {
-      case 'feed': b.hunger = Math.min(100, b.hunger + 25); playFeed(); break;
-      case 'clean': b.cleanliness = Math.min(100, b.cleanliness + 30); playClean(); break;
-      case 'play': b.happiness = Math.min(100, b.happiness + 20); playPlay(); break;
-      case 'sleep': b.energy = Math.min(100, b.energy + 30); playSleep(); break;
-      case 'medicine': b.health = Math.min(100, b.health + 20); playMedicine(); break;
+      case 'feed': playFeed(); break;
+      case 'clean': playClean(); break;
+      case 'play': playPlay(); break;
+      case 'sleep': playSleep(); break;
+      case 'medicine': playMedicine(); break;
       case 'breed': playBreed(); break;
+    }
+
+    const serverActionMap: Partial<Record<CareAction, SaveCareAction>> = { feed: 'feed', clean: 'bathe', play: 'play', sleep: 'sleep', medicine: 'vet' };
+    const serverAction = serverActionMap[action];
+    const serverSave = serverAction
+      ? await saveClient.applyAction(serverAction).catch((err: unknown) => { console.warn('Server action failed, using local fallback', err); return null; })
+      : null;
+
+    if (serverSave) {
+      b.hunger = serverSave.needs.hunger;
+      b.cleanliness = serverSave.needs.hygiene;
+      b.happiness = serverSave.needs.affection;
+      b.energy = serverSave.needs.energy;
+      b.health = serverSave.needs.health;
+    } else {
+      switch (action) {
+        case 'feed': b.hunger = Math.min(100, b.hunger + 25); break;
+        case 'clean': b.cleanliness = Math.min(100, b.cleanliness + 30); break;
+        case 'play': b.happiness = Math.min(100, b.happiness + 20); b.energy = Math.max(0, b.energy - 8); break;
+        case 'sleep': b.energy = Math.min(100, b.energy + 30); break;
+        case 'medicine': b.health = Math.min(100, b.health + 20); break;
+      }
     }
 
     if ((b.id === 'baby' || b.stage === 'baby') && !isServerBackedBunny(b)) {

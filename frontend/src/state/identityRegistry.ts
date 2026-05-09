@@ -1,16 +1,9 @@
 // Local identity registry for the Bunny Family onboarding flow.
 //
-// Stable per-character identity is the core user-vision constraint: father stays
-// the same father across rooms/reloads; mother stays the same mother; the baby
-// keeps the identity it gets at hatch. We store the minimum needed to reproduce
-// that selection, plus the egg's tap progress so a partial-hatch survives a
-// reload.
-//
-// The registry currently uses localStorage. When a server-authoritative save
-// arrives this module is the single place to switch to a fetch/save API; the
-// rest of the frontend should keep talking to `getIdentities()` / `saveX()`.
+// The server save is authoritative when available; localStorage remains as an
+// offline/demo fallback so the game still works while the backend is down.
 
-const STORAGE_KEY = 'bunny-family.v1';
+const STORAGE_KEY = '***';
 
 export type CharacterRole = 'father' | 'mother' | 'baby';
 export type CharacterState =
@@ -67,6 +60,16 @@ function cloneDefaultSave(): IdentitySave {
   return {
     ...DEFAULT_SAVE,
     egg: { ...DEFAULT_SAVE.egg },
+  };
+}
+
+function cloneSave(save: IdentitySave): IdentitySave {
+  return {
+    version: 1,
+    father: save.father ? { ...save.father } : null,
+    mother: save.mother ? { ...save.mother } : null,
+    baby: save.baby ? { ...save.baby } : null,
+    egg: { ...save.egg },
   };
 }
 
@@ -129,6 +132,12 @@ function writeStorage(save: IdentitySave) {
 
 let cache: IdentitySave = readStorage();
 
+export function hydrateIdentities(save: IdentitySave | null | undefined) {
+  if (!save) return;
+  cache = cloneSave(save);
+  writeStorage(cache);
+}
+
 export function getIdentities(): IdentitySave {
   return cache;
 }
@@ -142,8 +151,6 @@ export function isOnboardingComplete(): boolean {
 }
 
 function pickIdentityIndex(seed: number): number {
-  // Lightweight deterministic pick — good enough for visual stability.
-  // A future server-side roll can replace this without API changes.
   const v = (seed * 2654435761) >>> 0;
   return (v % IDENTITY_COUNT) + 1;
 }
@@ -181,19 +188,20 @@ export function shouldHatch(): boolean {
   return !cache.egg.hatched && cache.egg.taps >= HATCH_TAPS;
 }
 
-export function performHatch(): CharacterIdentity {
+export function performHatch(serverBaby?: CharacterIdentity | null): CharacterIdentity {
   if (cache.baby) return cache.baby;
   const father = cache.father;
   const mother = cache.mother;
   const seed = cache.egg.seed
     ^ (father?.identityIndex ?? 0) * 0x9e3779b1
     ^ (mother?.identityIndex ?? 0) * 0x85ebca6b;
-  const baby: CharacterIdentity = {
+  const baby: CharacterIdentity = serverBaby ?? {
     role: 'baby',
     identityIndex: pickIdentityIndex(seed >>> 0),
   };
   cache.baby = baby;
   cache.egg.hatched = true;
+  cache.egg.taps = HATCH_TAPS;
   writeStorage(cache);
   return baby;
 }

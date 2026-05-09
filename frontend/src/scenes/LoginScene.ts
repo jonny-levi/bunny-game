@@ -116,11 +116,11 @@ export class LoginScene extends Phaser.Scene {
 
     btn.on('pointerover', () => btn.setScale(1.08));
     btn.on('pointerout', () => btn.setScale(1));
-    btn.on('pointerdown', () => {
+    btn.on('pointerdown', async () => {
       playClick();
       startBGMusic();
       this.registry.set('playerName', name);
-      wsClient.connect(name);
+      await wsClient.connect(name);
       // First-run / mid-hatch users see the onboarding nest. Once the baby
       // has hatched the save persists, so returning users land in the rooms.
       if (isHatched()) {
