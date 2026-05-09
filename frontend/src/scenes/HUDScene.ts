@@ -5,6 +5,7 @@ import { ActionButton } from '../objects/ActionButton';
 import { gameBunnies, selectedBunnyId, activityLog, setSelectedBunny } from './RoomScene';
 import { wsClient, type BunnyState } from '../network/WebSocketClient';
 import { toggleMute, isMuted } from '../utils/sound';
+import { ACTION_COOLDOWNS, CARE_ACTIONS, type CareAction } from '../game/actions';
 
 const TOOLBAR_HEIGHT = 120;
 const PANEL_Y = GAME_HEIGHT - TOOLBAR_HEIGHT;
@@ -14,6 +15,8 @@ export class HUDScene extends Phaser.Scene {
   private bunnyNameText!: Phaser.GameObjects.Text;
   private muteBtn!: Phaser.GameObjects.Text;
   private roomLabel!: Phaser.GameObjects.Text;
+  private actionButtons = new Map<CareAction, ActionButton>();
+  private cooldownUntil = new Map<CareAction, number>();
 
   constructor() { super({ key: 'HUDScene' }); }
 
@@ -43,22 +46,22 @@ export class HUDScene extends Phaser.Scene {
       health: new StatBar(this, barX + 310, barY, '❤️ HP', COLORS.health, 90),
     };
 
-    // Action buttons row
-    const actions = [
-      { text: '🍳 Feed', color: COLORS.btnFeed, action: 'feed' },
-      { text: '🛁 Clean', color: COLORS.btnClean, action: 'clean' },
-      { text: '🎾 Play', color: COLORS.btnPlay, action: 'play' },
-      { text: '💤 Sleep', color: COLORS.btnSleep, action: 'sleep' },
-      { text: '💊 Heal', color: COLORS.btnMedicine, action: 'medicine' },
-      { text: '💕 Breed', color: COLORS.btnBreed, action: 'breed' },
-    ];
-
+    // Action buttons row with visible client-side cooldowns.
+    const actionColors: Record<CareAction, number> = {
+      feed: COLORS.btnFeed,
+      clean: COLORS.btnClean,
+      play: COLORS.btnPlay,
+      sleep: COLORS.btnSleep,
+      medicine: COLORS.btnMedicine,
+      breed: COLORS.btnBreed,
+    };
     const btnY = PANEL_Y + 88;
-    const btnSpacing = GAME_WIDTH / (actions.length + 1);
-    actions.forEach((a, i) => {
-      new ActionButton(this, btnSpacing * (i + 1), btnY, a.text, a.color, () => {
+    const btnSpacing = GAME_WIDTH / (CARE_ACTIONS.length + 1);
+    CARE_ACTIONS.forEach((a, i) => {
+      const btn = new ActionButton(this, btnSpacing * (i + 1), btnY, a.label, actionColors[a.action], () => {
         this.doRoomAction(a.action);
       }, 110, 36);
+      this.actionButtons.set(a.action, btn);
     });
 
     // Navigation arrows (above toolbar, on left/right edges)
@@ -103,7 +106,10 @@ export class HUDScene extends Phaser.Scene {
     this.time.addEvent({
       delay: 400,
       loop: true,
-      callback: () => this.updateHUD(),
+      callback: () => {
+        this.updateHUD();
+        this.updateCooldowns();
+      },
     });
   }
 
@@ -140,7 +146,12 @@ export class HUDScene extends Phaser.Scene {
     }
   }
 
-  private doRoomAction(action: string) {
+  private doRoomAction(action: CareAction) {
+    const now = Date.now();
+    const remaining = (this.cooldownUntil.get(action) ?? 0) - now;
+    if (remaining > 0) return;
+    this.cooldownUntil.set(action, now + ACTION_COOLDOWNS[action]);
+    this.updateCooldowns();
     const activeScenes = this.scene.manager.getScenes(true);
     for (const scene of activeScenes) {
       if (scene !== this && 'doAction' in scene) {
@@ -148,6 +159,13 @@ export class HUDScene extends Phaser.Scene {
         return;
       }
     }
+  }
+
+  private updateCooldowns() {
+    const now = Date.now();
+    this.actionButtons.forEach((button, action) => {
+      button.setCooldown(Math.max(0, (this.cooldownUntil.get(action) ?? 0) - now));
+    });
   }
 
   private navigateRoom(dir: number, rooms: string[]) {
