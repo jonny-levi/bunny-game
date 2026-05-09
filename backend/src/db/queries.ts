@@ -64,6 +64,11 @@ export async function getFamily(familyId: string): Promise<Family | null> {
 }
 
 // Players
+export async function getPlayerById(playerId: string): Promise<Player | null> {
+  const res = await pool.query('SELECT * FROM players WHERE id = $1', [playerId]);
+  return res.rows.length > 0 ? mapPlayer(res.rows[0]) : null;
+}
+
 export async function getOrCreatePlayer(familyId: string, name: string): Promise<Player> {
   const existing = await pool.query('SELECT * FROM players WHERE name = $1', [name]);
   if (existing.rows.length > 0) return mapPlayer(existing.rows[0]);
