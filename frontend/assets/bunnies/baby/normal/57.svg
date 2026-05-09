@@ -1,0 +1,76 @@
+<svg width="120" height="120" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Left Ear -->
+  <ellipse cx="42" cy="27" rx="10" ry="25" fill="#B4E7FF" transform="rotate(-15 42 27)" stroke="#99DEFF" stroke-width="0.5"/>
+  <ellipse cx="42" cy="29" rx="5" ry="18" fill="#ff69b4" transform="rotate(-15 42 29)" opacity="0.6"/>
+
+  <!-- Right Ear -->
+  <ellipse cx="78" cy="27" rx="10" ry="25" fill="#B4E7FF" transform="rotate(15 78 27)" stroke="#99DEFF" stroke-width="0.5"/>
+  <ellipse cx="78" cy="29" rx="5" ry="18" fill="#ff69b4" transform="rotate(15 78 29)" opacity="0.6"/>
+
+  <!-- Head -->
+  <circle cx="60" cy="54" r="27" fill="#B4E7FF" stroke="#99DEFF" stroke-width="0.5"/>
+
+  <!-- Fur fluff on head -->
+  <circle cx="45" cy="45" r="4" fill="#D9F2FF" opacity="0.6"/>
+  <circle cx="75" cy="45" r="4" fill="#D9F2FF" opacity="0.6"/>
+  <circle cx="51" cy="39" r="3" fill="#D9F2FF" opacity="0.5"/>
+  <circle cx="69" cy="39" r="3" fill="#D9F2FF" opacity="0.5"/>
+
+  <!-- Eyes -->
+  <ellipse cx="51" cy="51" rx="7" ry="9" fill="white"/>
+  <ellipse cx="69" cy="51" rx="7" ry="9" fill="white"/>
+
+  <!-- Pupils -->
+  <circle cx="52" cy="53" r="5" fill="#1a1a1a"/>
+  <circle cx="70" cy="53" r="5" fill="#1a1a1a"/>
+
+  <!-- Eye shine -->
+  <circle cx="50" cy="50" r="2.5" fill="white"/>
+  <circle cx="68" cy="50" r="2.5" fill="white"/>
+  <circle cx="54" cy="55" r="1.5" fill="white" opacity="0.7"/>
+  <circle cx="72" cy="55" r="1.5" fill="white" opacity="0.7"/>
+
+  <!-- Blush -->
+  <ellipse cx="42" cy="57" rx="6" ry="4" fill="#ff69b4" opacity="0.4"/>
+  <ellipse cx="78" cy="57" rx="6" ry="4" fill="#ff69b4" opacity="0.4"/>
+
+  <!-- Nose -->
+  <ellipse cx="60" cy="60" rx="3" ry="2.5" fill="#ff69b4"/>
+
+  <!-- Whiskers - Left side -->
+  <line x1="39" y1="59" x2="21" y2="57" stroke="#99DEFF" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="39" y1="61" x2="21" y2="63" stroke="#99DEFF" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="41" y1="60" x2="24" y2="60" stroke="#99DEFF" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Whiskers - Right side -->
+  <line x1="81" y1="59" x2="99" y2="57" stroke="#99DEFF" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="81" y1="61" x2="99" y2="63" stroke="#99DEFF" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="79" y1="60" x2="96" y2="60" stroke="#99DEFF" stroke-width="1.5" stroke-linecap="round"/>
+
+  <!-- Mouth -->
+  <path d="M 60 60 Q 57 63 54 62" stroke="#1a1a1a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+  <path d="M 60 60 Q 63 63 66 62" stroke="#1a1a1a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+
+  <!-- Body -->
+  <ellipse cx="60" cy="87" rx="24" ry="27" fill="#B4E7FF" stroke="#99DEFF" stroke-width="0.5"/>
+
+  <!-- Fur fluff on body -->
+  <circle cx="45" cy="81" r="5" fill="#D9F2FF" opacity="0.6"/>
+  <circle cx="75" cy="81" r="5" fill="#D9F2FF" opacity="0.6"/>
+  <circle cx="48" cy="93" r="4" fill="#D9F2FF" opacity="0.5"/>
+  <circle cx="72" cy="93" r="4" fill="#D9F2FF" opacity="0.5"/>
+
+  <!-- Left Paw -->
+  <ellipse cx="45" cy="105" rx="7" ry="9" fill="#B4E7FF" stroke="#99DEFF" stroke-width="0.5"/>
+  <circle cx="45" cy="112" r="4" fill="#D9F2FF"/>
+
+  <!-- Right Paw -->
+  <ellipse cx="75" cy="105" rx="7" ry="9" fill="#B4E7FF" stroke="#99DEFF" stroke-width="0.5"/>
+  <circle cx="75" cy="112" r="4" fill="#D9F2FF"/>
+
+  <!-- Fluffy Tail -->
+  <circle cx="84" cy="93" r="9" fill="#B4E7FF" stroke="#99DEFF" stroke-width="0.5"/>
+  <circle cx="87" cy="90" r="7" fill="#D9F2FF" opacity="0.7"/>
+  <circle cx="89" cy="93" r="6" fill="#D9F2FF" opacity="0.6"/>
+  <circle cx="87" cy="96" r="5" fill="#D9F2FF" opacity="0.5"/>
+</svg>

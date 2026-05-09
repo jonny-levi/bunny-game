@@ -10,7 +10,7 @@
 // arrives this module is the single place to switch to a fetch/save API; the
 // rest of the frontend should keep talking to `getIdentities()` / `saveX()`.
 
-const STORAGE_KEY = 'bunny-family.identity.v1';
+const STORAGE_KEY = 'bunny-family.v1';
 
 export type CharacterRole = 'father' | 'mother' | 'baby';
 export type CharacterState =
@@ -20,9 +20,12 @@ export type CharacterState =
   | 'eating'
   | 'playing';
 
+export type AssetKind = 'adult' | 'baby';
+export type BabyAssetState = 'normal' | 'happy' | 'sleeping';
+
 export interface CharacterIdentity {
   role: CharacterRole;
-  identityIndex: number; // 1..N — selects which sprite/colour/pattern variant
+  identityIndex: number; // 1..100 — selects which sprite variant
 }
 
 export interface EggState {
@@ -40,14 +43,17 @@ export interface IdentitySave {
   egg: EggState;
 }
 
+export interface BunnyAssetRef {
+  key: string;
+  path: string;
+  kind: AssetKind;
+  index: number;
+  state?: BabyAssetState;
+}
+
 export const HATCH_TAPS = 8;
 export const CRACK_THRESHOLDS = [2, 4, 6, HATCH_TAPS] as const;
-
-// We deliberately keep the asset pool small for now (4 SVGs in
-// frontend/assets/bunnies). The mapping is deterministic — same identityIndex
-// always resolves to the same asset key. Once richer asset packs land,
-// expand IDENTITY_COUNT and this lookup; consumers won't need to change.
-export const IDENTITY_COUNT = 4;
+export const IDENTITY_COUNT = 100;
 
 const DEFAULT_SAVE: IdentitySave = {
   version: 1,
@@ -57,22 +63,58 @@ const DEFAULT_SAVE: IdentitySave = {
   egg: { taps: 0, hatched: false, seed: 0 },
 };
 
+function cloneDefaultSave(): IdentitySave {
+  return {
+    ...DEFAULT_SAVE,
+    egg: { ...DEFAULT_SAVE.egg },
+  };
+}
+
+function clampIdentityIndex(value: unknown): number | null {
+  if (typeof value !== 'number' || !Number.isInteger(value)) return null;
+  if (value < 1 || value > IDENTITY_COUNT) return null;
+  return value;
+}
+
+function sanitizeIdentity(value: unknown, role: CharacterRole): CharacterIdentity | null {
+  if (!value || typeof value !== 'object') return null;
+  const candidate = value as Partial<CharacterIdentity>;
+  if (candidate.role !== role) return null;
+  const identityIndex = clampIdentityIndex(candidate.identityIndex);
+  if (identityIndex == null) return null;
+  return { role, identityIndex };
+}
+
+function sanitizeEgg(value: unknown): EggState {
+  if (!value || typeof value !== 'object') return { ...DEFAULT_SAVE.egg };
+  const candidate = value as Partial<EggState>;
+  const taps = typeof candidate.taps === 'number'
+    ? Math.max(0, Math.min(HATCH_TAPS, Math.trunc(candidate.taps)))
+    : 0;
+  const seed = typeof candidate.seed === 'number' && Number.isFinite(candidate.seed)
+    ? candidate.seed >>> 0
+    : 0;
+  return { taps, seed, hatched: candidate.hatched === true };
+}
+
 function safeParse(raw: string | null): IdentitySave | null {
   if (!raw) return null;
   try {
-    const parsed = JSON.parse(raw) as IdentitySave;
-    if (parsed && parsed.version === 1) return parsed;
-    return null;
+    const parsed = JSON.parse(raw) as Partial<IdentitySave>;
+    if (!parsed || parsed.version !== 1) return null;
+    const father = sanitizeIdentity(parsed.father, 'father');
+    const mother = sanitizeIdentity(parsed.mother, 'mother');
+    const baby = sanitizeIdentity(parsed.baby, 'baby');
+    const egg = sanitizeEgg(parsed.egg);
+    return { version: 1, father, mother, baby, egg };
   } catch {
     return null;
   }
 }
 
 function readStorage(): IdentitySave {
-  if (typeof localStorage === 'undefined') return { ...DEFAULT_SAVE, egg: { ...DEFAULT_SAVE.egg } };
-  const parsed = safeParse(localStorage.getItem(STORAGE_KEY));
-  if (parsed) return parsed;
-  return { ...DEFAULT_SAVE, egg: { ...DEFAULT_SAVE.egg } };
+  if (typeof localStorage === 'undefined') return cloneDefaultSave();
+  return safeParse(localStorage.getItem(STORAGE_KEY)) ?? cloneDefaultSave();
 }
 
 function writeStorage(save: IdentitySave) {
@@ -156,30 +198,87 @@ export function performHatch(): CharacterIdentity {
   return baby;
 }
 
-// assetFor resolves a character + state to an asset key registered in
-// BootScene's preload. With four available SVGs we cycle between them by
-// identityIndex; structurally this is the hook for richer packs later.
+function babyAssetStateFor(state: CharacterState): BabyAssetState {
+  if (state === 'sleeping') return 'sleeping';
+  if (state === 'happy' || state === 'playing' || state === 'eating') return 'happy';
+  return 'normal';
+}
+
+function validIndex(index: number): number {
+  return clampIdentityIndex(index) ?? 1;
+}
+
+export function bunnyAssetKey(kind: AssetKind, index: number, state?: BabyAssetState): string {
+  const safeIndex = validIndex(index);
+  if (kind === 'adult') return `bunny-adult-${safeIndex}`;
+  return `bunny-baby-${state ?? 'normal'}-${safeIndex}`;
+}
+
+export function bunnyAssetPath(kind: AssetKind, index: number, state?: BabyAssetState): string {
+  const safeIndex = validIndex(index);
+  if (kind === 'adult') return `/assets/bunnies/adult/${safeIndex}.svg`;
+  return `/assets/bunnies/baby/${state ?? 'normal'}/${safeIndex}.svg`;
+}
+
+export function bunnyAssetRef(kind: AssetKind, index: number, state?: BabyAssetState): BunnyAssetRef {
+  const safeIndex = validIndex(index);
+  const safeState = kind === 'baby' ? (state ?? 'normal') : undefined;
+  return {
+    key: bunnyAssetKey(kind, safeIndex, safeState),
+    path: bunnyAssetPath(kind, safeIndex, safeState),
+    kind,
+    index: safeIndex,
+    state: safeState,
+  };
+}
+
+// assetFor resolves a character + state to a validated, deterministic asset ref.
+// It constructs paths only from a constrained kind/index/state tuple; no caller
+// supplied path can reach the loader.
 export function assetFor(
   character: CharacterIdentity | { role: 'egg' } | null,
   state: CharacterState = 'normal',
-): string | null {
-  if (!character) return null;
-  if (character.role === 'egg') return null;
+): BunnyAssetRef | null {
+  if (!character || character.role === 'egg') return null;
 
   if (character.role === 'father' || character.role === 'mother') {
-    return 'adult-bunny';
+    return bunnyAssetRef('adult', character.identityIndex);
   }
-  // baby
-  if (state === 'sleeping') return 'baby-bunny-sleeping';
-  if (state === 'happy' || state === 'playing' || state === 'eating') {
-    return 'baby-bunny-happy';
+
+  return bunnyAssetRef('baby', character.identityIndex, babyAssetStateFor(state));
+}
+
+export function fallbackAssets(): BunnyAssetRef[] {
+  return [
+    bunnyAssetRef('adult', 1),
+    bunnyAssetRef('baby', 1, 'normal'),
+    bunnyAssetRef('baby', 1, 'happy'),
+    bunnyAssetRef('baby', 1, 'sleeping'),
+  ];
+}
+
+export function currentIdentityAssets(): BunnyAssetRef[] {
+  const refs: BunnyAssetRef[] = [...fallbackAssets()];
+  for (const identity of [cache.father, cache.mother, cache.baby]) {
+    if (!identity) continue;
+    if (identity.role === 'baby') {
+      refs.push(
+        bunnyAssetRef('baby', identity.identityIndex, 'normal'),
+        bunnyAssetRef('baby', identity.identityIndex, 'happy'),
+        bunnyAssetRef('baby', identity.identityIndex, 'sleeping'),
+      );
+    } else {
+      refs.push(bunnyAssetRef('adult', identity.identityIndex));
+    }
   }
-  return 'baby-bunny-normal';
+  const unique = new Map<string, BunnyAssetRef>();
+  refs.forEach((ref) => unique.set(ref.key, ref));
+  return [...unique.values()];
 }
 
 // Test/dev hook: clear the local save so onboarding restarts. Not wired into
 // the UI yet; useful from the browser console while testing.
 export function resetIdentities() {
-  cache = { ...DEFAULT_SAVE, egg: { ...DEFAULT_SAVE.egg } };
+  cache = cloneDefaultSave();
   writeStorage(cache);
 }

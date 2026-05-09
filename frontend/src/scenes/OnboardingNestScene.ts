@@ -9,6 +9,8 @@ import {
   getIdentities,
   HATCH_TAPS,
   assetFor,
+  bunnyAssetRef,
+  type BunnyAssetRef,
   type CharacterIdentity,
 } from '../state/identityRegistry';
 
@@ -74,17 +76,11 @@ export class OnboardingNestScene extends Phaser.Scene {
   private drawParents(father: CharacterIdentity, mother: CharacterIdentity) {
     const baseY = 240;
 
-    const motherKey = assetFor(mother) ?? 'adult-bunny';
-    const fatherKey = assetFor(father) ?? 'adult-bunny';
+    const motherRef = assetFor(mother) ?? bunnyAssetRef('adult', 1);
+    const fatherRef = assetFor(father) ?? bunnyAssetRef('adult', 1);
 
-    if (this.textures.exists(motherKey)) {
-      const m = this.add.image(180, baseY, motherKey).setDisplaySize(120, 120).setDepth(2);
-      this.gentleBounce(m, 0);
-    }
-    if (this.textures.exists(fatherKey)) {
-      const f = this.add.image(GAME_WIDTH - 180, baseY, fatherKey).setDisplaySize(130, 130).setDepth(2);
-      this.gentleBounce(f, 600);
-    }
+    this.addAssetImage(motherRef, 180, baseY, 120, 0);
+    this.addAssetImage(fatherRef, GAME_WIDTH - 180, baseY, 130, 600);
 
     this.add.text(180, baseY + 80, 'Mother', {
       fontFamily: 'Arial, sans-serif', fontSize: '14px',
@@ -94,6 +90,26 @@ export class OnboardingNestScene extends Phaser.Scene {
       fontFamily: 'Arial, sans-serif', fontSize: '14px',
       color: '#ffffff', stroke: '#333333', strokeThickness: 3, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(3);
+  }
+
+  private addAssetImage(ref: BunnyAssetRef, x: number, y: number, size: number, bounceDelay: number) {
+    const create = () => {
+      if (!this.textures.exists(ref.key)) return;
+      const image = this.add.image(x, y, ref.key).setDisplaySize(size, size).setDepth(2);
+      this.gentleBounce(image, bounceDelay);
+    };
+
+    if (this.textures.exists(ref.key)) {
+      create();
+      return;
+    }
+
+    this.load.svg(ref.key, ref.path, {
+      width: ref.kind === 'adult' ? 160 : 120,
+      height: ref.kind === 'adult' ? 160 : 120,
+    });
+    this.load.once(`filecomplete-svg-${ref.key}`, create);
+    if (!this.load.isLoading()) this.load.start();
   }
 
   private gentleBounce(target: Phaser.GameObjects.Image, delay: number) {
@@ -289,9 +305,10 @@ export class OnboardingNestScene extends Phaser.Scene {
       onComplete: () => this.eggContainer.destroy(),
     });
 
-    const babyKey = assetFor(baby, 'happy') ?? 'baby-bunny-happy';
-    if (this.textures.exists(babyKey)) {
-      const babyImg = this.add.image(cx, cy, babyKey).setDisplaySize(0, 0).setDepth(6);
+    const babyRef = assetFor(baby, 'happy') ?? bunnyAssetRef('baby', 1, 'happy');
+    const showBaby = () => {
+      if (!this.textures.exists(babyRef.key)) return;
+      const babyImg = this.add.image(cx, cy, babyRef.key).setDisplaySize(0, 0).setDepth(6);
       this.tweens.add({
         targets: babyImg, displayWidth: 110, displayHeight: 110,
         duration: 500, ease: 'Back.easeOut', delay: 250,
@@ -301,6 +318,13 @@ export class OnboardingNestScene extends Phaser.Scene {
           });
         },
       });
+    };
+    if (this.textures.exists(babyRef.key)) {
+      showBaby();
+    } else {
+      this.load.svg(babyRef.key, babyRef.path, { width: 120, height: 120 });
+      this.load.once(`filecomplete-svg-${babyRef.key}`, showBaby);
+      if (!this.load.isLoading()) this.load.start();
     }
 
     // Sparkle burst
