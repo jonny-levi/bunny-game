@@ -1,21 +1,18 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH, GAME_HEIGHT, COLORS } from '../config';
+import { GAME_WIDTH, GAME_HEIGHT } from '../config';
+import { currentIdentityAssets } from '../state/identityRegistry';
 
 export class BootScene extends Phaser.Scene {
   constructor() { super({ key: 'BootScene' }); }
 
   preload() {
-    const bunnyAssets = [
-      { key: 'baby-bunny-normal', path: '/assets/bunnies/baby-bunny-normal.svg', size: 120 },
-      { key: 'baby-bunny-happy', path: '/assets/bunnies/baby-bunny-happy.svg', size: 120 },
-      { key: 'baby-bunny-sleeping', path: '/assets/bunnies/baby-bunny-sleeping.svg', size: 120 },
-      { key: 'adult-bunny', path: '/assets/bunnies/adult-bunny.svg', size: 160 },
-    ];
-
-    bunnyAssets.forEach(({ key, path, size }) => {
+    // Preload only the persisted selected identities plus index-1 fallbacks.
+    // The full 400-SVG library lives in /assets and is lazy-loaded by scenes
+    // when a new identity/state becomes visible.
+    currentIdentityAssets().forEach(({ key, path, kind }) => {
       this.load.svg(key, path, {
-        width: size,
-        height: size,
+        width: kind === 'adult' ? 160 : 120,
+        height: kind === 'adult' ? 160 : 120,
       });
     });
   }

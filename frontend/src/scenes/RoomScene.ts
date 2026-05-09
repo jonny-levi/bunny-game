@@ -3,6 +3,7 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { Bunny } from '../objects/Bunny';
 import { wsClient, type BunnyState } from '../network/WebSocketClient';
 import { getDayNightTint, getSeason } from '../utils/time';
+import { getIdentities, type CharacterIdentity } from '../state/identityRegistry';
 import type { LifeStage } from '../config';
 
 const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
@@ -21,9 +22,9 @@ export function addActivity(msg: string) {
 export function ensureDemoBunnies() {
   if (gameBunnies.length === 0) {
     gameBunnies = [
-      { id: 'b1', name: 'Mochi', color: 'white', pattern: null, stage: 'adult', hunger: 75, happiness: 80, cleanliness: 60, energy: 70, health: 85, isAlive: true, parentAId: null, parentBId: null },
-      { id: 'b2', name: 'Boba', color: 'brown', pattern: null, stage: 'baby', hunger: 90, happiness: 95, cleanliness: 80, energy: 50, health: 90, isAlive: true, parentAId: null, parentBId: null },
-      { id: 'b3', name: 'Pudding', color: 'pink', pattern: null, stage: 'teen', hunger: 60, happiness: 70, cleanliness: 90, energy: 80, health: 75, isAlive: true, parentAId: null, parentBId: null },
+      { id: 'father', name: 'Mochi', color: 'white', pattern: null, stage: 'adult', hunger: 75, happiness: 80, cleanliness: 60, energy: 70, health: 85, isAlive: true, parentAId: null, parentBId: null },
+      { id: 'mother', name: 'Luna', color: 'brown', pattern: null, stage: 'adult', hunger: 82, happiness: 88, cleanliness: 76, energy: 64, health: 90, isAlive: true, parentAId: null, parentBId: null },
+      { id: 'baby', name: 'Boba', color: 'pink', pattern: null, stage: 'baby', hunger: 90, happiness: 95, cleanliness: 80, energy: 50, health: 90, isAlive: true, parentAId: 'father', parentBId: 'mother' },
     ];
   }
 }
@@ -79,9 +80,18 @@ export abstract class RoomScene extends Phaser.Scene {
     const groundY = PLAY_AREA_HEIGHT - 80;
     const spacing = (GAME_WIDTH - 100) / (alive.length + 1);
 
+    const identities = getIdentities();
+    const identityById: Record<string, CharacterIdentity | null> = {
+      father: identities.father,
+      mother: identities.mother,
+      baby: identities.baby,
+      b1: identities.father,
+      b2: identities.baby,
+    };
+
     alive.forEach((b, i) => {
       const bx = 50 + spacing * (i + 1);
-      const bunny = new Bunny(this, bx, groundY, b.id, b.name, b.color, b.stage as LifeStage);
+      const bunny = new Bunny(this, bx, groundY, b.id, b.name, b.color, b.stage as LifeStage, identityById[b.id] ?? null);
       bunny.setDepth(3);
       bunny.setInteractable(() => {
         setSelectedBunny(b.id);

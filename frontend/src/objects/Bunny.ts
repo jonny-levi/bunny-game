@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BUNNY_COLORS, type LifeStage } from '../config';
+import { assetFor, bunnyAssetRef, type BunnyAssetRef, type CharacterIdentity, type CharacterState } from '../state/identityRegistry';
 
 export class Bunny extends Phaser.GameObjects.Container {
   private bodyShape: Phaser.GameObjects.Ellipse;
@@ -20,18 +21,20 @@ export class Bunny extends Phaser.GameObjects.Container {
   private tail: Phaser.GameObjects.Ellipse;
   private belly: Phaser.GameObjects.Ellipse;
   private spriteAsset: Phaser.GameObjects.Image | null = null;
+  private identity: CharacterIdentity | null = null;
 
   public bunnyId: string;
   public bunnyName: string;
   public stage: LifeStage;
   public color: string;
 
-  constructor(scene: Phaser.Scene, x: number, y: number, id: string, name: string, color: string, stage: LifeStage) {
+  constructor(scene: Phaser.Scene, x: number, y: number, id: string, name: string, color: string, stage: LifeStage, identity: CharacterIdentity | null = null) {
     super(scene, x, y);
     this.bunnyId = id;
     this.bunnyName = name;
     this.stage = stage;
     this.color = color;
+    this.identity = identity;
 
     const s = this.getStageScale();
     const tint = BUNNY_COLORS[color] || 0xfff5ee;
@@ -184,39 +187,71 @@ export class Bunny extends Phaser.GameObjects.Container {
     }
   }
 
-  private getIdleAssetKey(): string | null {
+  private getRole(): CharacterIdentity['role'] {
+    if (this.identity) return this.identity.role;
+    return this.stage === 'adult' || this.stage === 'elder' ? 'father' : 'baby';
+  }
+
+  private getIdentityIndex(): number {
+    if (this.identity) return this.identity.identityIndex;
+    const digits = this.bunnyId.match(/\d+/)?.[0];
+    const seed = digits ? Number(digits) : [...this.bunnyId].reduce((sum, c) => sum + c.charCodeAt(0), 0);
+    return ((seed - 1) % 100) + 1;
+  }
+
+  private getAssetRef(state: CharacterState = 'normal'): BunnyAssetRef | null {
     if (this.stage === 'egg') return null;
-    if (this.stage === 'adult' || this.stage === 'elder') return 'adult-bunny';
-    return 'baby-bunny-normal';
+    if (this.identity) return assetFor(this.identity, state);
+    if (this.stage === 'adult' || this.stage === 'elder') return bunnyAssetRef('adult', this.getIdentityIndex());
+    return assetFor({ role: 'baby', identityIndex: this.getIdentityIndex() }, state);
   }
 
-  private getAssetDisplaySize(assetKey: string, scale: number): number {
-    return assetKey === 'adult-bunny' ? 128 * scale : 96 * scale;
+  private getIdleAssetRef(): BunnyAssetRef | null {
+    return this.getAssetRef('normal');
   }
 
-  private showSpriteAsset(assetKey: string, yOffset = -2) {
-    if (!this.scene.textures.exists(assetKey) || this.stage === 'egg') return false;
+  private getAssetDisplaySize(ref: BunnyAssetRef, scale: number): number {
+    return ref.kind === 'adult' ? 128 * scale : 96 * scale;
+  }
 
-    if (this.spriteAsset) {
-      this.scene.tweens.killTweensOf(this.spriteAsset);
-      this.spriteAsset.destroy();
-      this.spriteAsset = null;
+  private showSpriteAsset(ref: BunnyAssetRef | null, yOffset = -2) {
+    if (!ref || this.stage === 'egg') return false;
+
+    const draw = () => {
+      if (!this.scene.textures.exists(ref.key) || this.stage === 'egg') return;
+      if (this.spriteAsset) {
+        this.scene.tweens.killTweensOf(this.spriteAsset);
+        this.spriteAsset.destroy();
+        this.spriteAsset = null;
+      }
+
+      this.setDrawnBodyVisible(false);
+      const s = this.getStageScale();
+      this.spriteAsset = this.scene.add.image(0, yOffset * s, ref.key);
+      const size = this.getAssetDisplaySize(ref, s);
+      this.spriteAsset.setDisplaySize(size, size);
+      this.spriteAsset.setDepth(2);
+      this.add(this.spriteAsset);
+    };
+
+    if (this.scene.textures.exists(ref.key)) {
+      draw();
+      return true;
     }
 
-    this.setDrawnBodyVisible(false);
-    const s = this.getStageScale();
-    this.spriteAsset = this.scene.add.image(0, yOffset * s, assetKey);
-    const size = this.getAssetDisplaySize(assetKey, s);
-    this.spriteAsset.setDisplaySize(size, size);
-    this.spriteAsset.setDepth(2);
-    this.add(this.spriteAsset);
+    this.scene.load.svg(ref.key, ref.path, {
+      width: ref.kind === 'adult' ? 160 : 120,
+      height: ref.kind === 'adult' ? 160 : 120,
+    });
+    this.scene.load.once(`filecomplete-svg-${ref.key}`, draw);
+    if (!this.scene.load.isLoading()) this.scene.load.start();
     return true;
   }
 
   startIdleBounce() {
     this.animState = 'idle';
     this.stopAnim();
-    const idleAsset = this.getIdleAssetKey();
+    const idleAsset = this.getIdleAssetRef();
     if (idleAsset) this.showSpriteAsset(idleAsset);
     this.bounceTimer = this.scene.time.addEvent({
       delay: 1200,
@@ -236,7 +271,7 @@ export class Bunny extends Phaser.GameObjects.Container {
   playEating() {
     this.stopAnim();
     this.animState = 'eating';
-    this.showSpriteAsset(this.stage === 'adult' || this.stage === 'elder' ? 'adult-bunny' : 'baby-bunny-happy');
+    this.showSpriteAsset(this.getAssetRef(this.getRole() === 'baby' ? 'eating' : 'normal'));
     this.bounceTimer = this.scene.time.addEvent({
       delay: 300,
       loop: true,
@@ -257,7 +292,7 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.stopAnim();
     this.animState = 'sleeping';
 
-    if (this.showSpriteAsset(this.stage === 'adult' || this.stage === 'elder' ? 'adult-bunny' : 'baby-bunny-sleeping')) {
+    if (this.showSpriteAsset(this.getAssetRef(this.getRole() === 'baby' ? 'sleeping' : 'normal'))) {
       const spriteAsset = this.spriteAsset;
       if (spriteAsset) {
         this.scene.tweens.add({
@@ -290,7 +325,7 @@ export class Bunny extends Phaser.GameObjects.Container {
   playPlaying() {
     this.stopAnim();
     this.animState = 'playing';
-    this.showSpriteAsset(this.stage === 'adult' || this.stage === 'elder' ? 'adult-bunny' : 'baby-bunny-happy');
+    this.showSpriteAsset(this.getAssetRef(this.getRole() === 'baby' ? 'playing' : 'normal'));
     this.bounceTimer = this.scene.time.addEvent({
       delay: 500,
       loop: true,
