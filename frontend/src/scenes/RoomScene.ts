@@ -5,6 +5,7 @@ import { wsClient, type BunnyState } from '../network/WebSocketClient';
 import { getDayNightTint, getSeason } from '../utils/time';
 import { getIdentities, type CharacterIdentity } from '../state/identityRegistry';
 import type { LifeStage } from '../config';
+import { isCareAction, type CareAction } from '../game/actions';
 
 const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
 
@@ -101,7 +102,7 @@ export abstract class RoomScene extends Phaser.Scene {
     });
   }
 
-  protected applyAction(action: string, bunnyId: string) {
+  protected applyAction(action: CareAction, bunnyId: string) {
     const b = gameBunnies.find(x => x.id === bunnyId);
     if (!b) return;
 
@@ -116,11 +117,20 @@ export abstract class RoomScene extends Phaser.Scene {
       case 'medicine': b.health = Math.min(100, b.health + 20); break;
     }
 
-    addActivity(`${playerName} ${action === 'feed' ? 'fed' : action === 'clean' ? 'cleaned' : action === 'play' ? 'played with' : action === 'sleep' ? 'put to sleep' : action === 'medicine' ? 'gave medicine to' : 'bred'} ${b.name} ${emojis[action] || ''}`);
+    const verbs: Record<CareAction, string> = {
+      feed: 'fed',
+      clean: 'bathed',
+      play: 'played with',
+      sleep: 'put to sleep',
+      medicine: 'took to the vet',
+      breed: 'bred',
+    };
+    addActivity(`${playerName} ${verbs[action]} ${b.name} ${emojis[action] || ''}`);
     wsClient.sendAction(action, bunnyId);
   }
 
   doAction(action: string) {
+    if (!isCareAction(action)) return;
     if (!selectedBunnyId && gameBunnies.length > 0) {
       selectedBunnyId = gameBunnies[0].id;
     }
@@ -128,7 +138,7 @@ export abstract class RoomScene extends Phaser.Scene {
 
     this.applyAction(action, selectedBunnyId);
 
-    const roomMap: Record<string, string> = {
+    const roomMap: Record<CareAction, string> = {
       feed: 'KitchenScene',
       clean: 'BathroomScene',
       play: 'GardenScene',
@@ -150,7 +160,8 @@ export abstract class RoomScene extends Phaser.Scene {
           case 'feed': bunnyObj.playEating(); this.time.delayedCall(2000, () => bunnyObj.startIdleBounce()); break;
           case 'sleep': bunnyObj.playSleeping(); this.time.delayedCall(3000, () => bunnyObj.startIdleBounce()); break;
           case 'play': bunnyObj.playPlaying(); this.time.delayedCall(2000, () => bunnyObj.startIdleBounce()); break;
-          case 'clean': bunnyObj.playEating(); this.time.delayedCall(1500, () => bunnyObj.startIdleBounce()); break;
+          case 'clean': bunnyObj.playPlaying(); this.time.delayedCall(1500, () => bunnyObj.startIdleBounce()); break;
+          case 'medicine': bunnyObj.playPlaying(); this.time.delayedCall(1500, () => bunnyObj.startIdleBounce()); break;
         }
       }
     }
