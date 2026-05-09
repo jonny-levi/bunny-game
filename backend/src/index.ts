@@ -3,6 +3,7 @@ import cors from 'cors';
 import http from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { URL } from 'url';
+import path from 'path';
 import { config } from './config';
 import { pool } from './db/pool';
 import * as db from './db/queries';
@@ -16,6 +17,9 @@ import { broadcastToFamily } from './ws/rooms';
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+const publicDir = path.join(__dirname, '..', 'public');
+app.use(express.static(publicDir));
 
 // Health check
 app.get('/health', async (_req, res) => {
@@ -85,6 +89,11 @@ app.get('/family/:id/activity', async (req, res) => {
     console.error('Activity fetch error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+// SPA fallback for the bundled frontend. Keep API/WS routes above this.
+app.get('*', (_req, res) => {
+  res.sendFile(path.join(publicDir, 'index.html'));
 });
 
 // Create HTTP server
