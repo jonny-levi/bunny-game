@@ -10,6 +10,7 @@ import { GardenScene } from './scenes/GardenScene';
 import { BedroomScene } from './scenes/BedroomScene';
 import { VetScene } from './scenes/VetScene';
 import { NestScene } from './scenes/NestScene';
+import { OnboardingNestScene } from './scenes/OnboardingNestScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -24,6 +25,7 @@ const config: Phaser.Types.Core.GameConfig = {
   scene: [
     BootScene,
     LoginScene,
+    OnboardingNestScene,
     LivingRoomScene,
     KitchenScene,
     BathroomScene,

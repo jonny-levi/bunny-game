@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { wsClient } from '../network/WebSocketClient';
 import { playClick, startBGMusic } from '../utils/sound';
+import { isHatched } from '../state/identityRegistry';
 
 export class LoginScene extends Phaser.Scene {
   constructor() { super({ key: 'LoginScene' }); }
@@ -120,8 +121,14 @@ export class LoginScene extends Phaser.Scene {
       startBGMusic();
       this.registry.set('playerName', name);
       wsClient.connect(name);
-      this.scene.start('LivingRoomScene');
-      this.scene.launch('HUDScene');
+      // First-run / mid-hatch users see the onboarding nest. Once the baby
+      // has hatched the save persists, so returning users land in the rooms.
+      if (isHatched()) {
+        this.scene.start('LivingRoomScene');
+        this.scene.launch('HUDScene');
+      } else {
+        this.scene.start('OnboardingNestScene');
+      }
     });
   }
 }
