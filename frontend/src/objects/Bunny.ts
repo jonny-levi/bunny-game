@@ -19,7 +19,7 @@ export class Bunny extends Phaser.GameObjects.Container {
   private rightArm: Phaser.GameObjects.Ellipse;
   private tail: Phaser.GameObjects.Ellipse;
   private belly: Phaser.GameObjects.Ellipse;
-  private sleepingAsset: Phaser.GameObjects.Image | null = null;
+  private spriteAsset: Phaser.GameObjects.Image | null = null;
 
   public bunnyId: string;
   public bunnyName: string;
@@ -184,9 +184,40 @@ export class Bunny extends Phaser.GameObjects.Container {
     }
   }
 
+  private getIdleAssetKey(): string | null {
+    if (this.stage === 'egg') return null;
+    if (this.stage === 'adult' || this.stage === 'elder') return 'adult-bunny';
+    return 'baby-bunny-normal';
+  }
+
+  private getAssetDisplaySize(assetKey: string, scale: number): number {
+    return assetKey === 'adult-bunny' ? 128 * scale : 96 * scale;
+  }
+
+  private showSpriteAsset(assetKey: string, yOffset = -2) {
+    if (!this.scene.textures.exists(assetKey) || this.stage === 'egg') return false;
+
+    if (this.spriteAsset) {
+      this.scene.tweens.killTweensOf(this.spriteAsset);
+      this.spriteAsset.destroy();
+      this.spriteAsset = null;
+    }
+
+    this.setDrawnBodyVisible(false);
+    const s = this.getStageScale();
+    this.spriteAsset = this.scene.add.image(0, yOffset * s, assetKey);
+    const size = this.getAssetDisplaySize(assetKey, s);
+    this.spriteAsset.setDisplaySize(size, size);
+    this.spriteAsset.setDepth(2);
+    this.add(this.spriteAsset);
+    return true;
+  }
+
   startIdleBounce() {
     this.animState = 'idle';
     this.stopAnim();
+    const idleAsset = this.getIdleAssetKey();
+    if (idleAsset) this.showSpriteAsset(idleAsset);
     this.bounceTimer = this.scene.time.addEvent({
       delay: 1200,
       loop: true,
@@ -205,6 +236,7 @@ export class Bunny extends Phaser.GameObjects.Container {
   playEating() {
     this.stopAnim();
     this.animState = 'eating';
+    this.showSpriteAsset(this.stage === 'adult' || this.stage === 'elder' ? 'adult-bunny' : 'baby-bunny-happy');
     this.bounceTimer = this.scene.time.addEvent({
       delay: 300,
       loop: true,
@@ -225,23 +257,19 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.stopAnim();
     this.animState = 'sleeping';
 
-    if (this.scene.textures.exists('baby-bunny-sleeping') && this.stage !== 'egg') {
-      this.setDrawnBodyVisible(false);
-      const s = this.getStageScale();
-      this.sleepingAsset = this.scene.add.image(0, -2 * s, 'baby-bunny-sleeping');
-      this.sleepingAsset.setDisplaySize(96 * s, 96 * s);
-      this.sleepingAsset.setDepth(2);
-      this.add(this.sleepingAsset);
-
-      this.scene.tweens.add({
-        targets: this.sleepingAsset,
-        scaleX: this.sleepingAsset.scaleX * 1.03,
-        scaleY: this.sleepingAsset.scaleY * 1.03,
-        duration: 1300,
-        yoyo: true,
-        repeat: -1,
-        ease: 'Sine.easeInOut',
-      });
+    if (this.showSpriteAsset(this.stage === 'adult' || this.stage === 'elder' ? 'adult-bunny' : 'baby-bunny-sleeping')) {
+      const spriteAsset = this.spriteAsset;
+      if (spriteAsset) {
+        this.scene.tweens.add({
+          targets: spriteAsset,
+          scaleX: spriteAsset.scaleX * 1.03,
+          scaleY: spriteAsset.scaleY * 1.03,
+          duration: 1300,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+        });
+      }
     } else {
       this.leftEye.setScale(1, 0.15);
       this.rightEye.setScale(1, 0.15);
@@ -262,6 +290,7 @@ export class Bunny extends Phaser.GameObjects.Container {
   playPlaying() {
     this.stopAnim();
     this.animState = 'playing';
+    this.showSpriteAsset(this.stage === 'adult' || this.stage === 'elder' ? 'adult-bunny' : 'baby-bunny-happy');
     this.bounceTimer = this.scene.time.addEvent({
       delay: 500,
       loop: true,
@@ -302,10 +331,10 @@ export class Bunny extends Phaser.GameObjects.Container {
   stopAnim() {
     if (this.bounceTimer) { this.bounceTimer.destroy(); this.bounceTimer = null; }
     if (this.zzz) { this.zzz.destroy(); this.zzz = null; }
-    if (this.sleepingAsset) {
-      this.scene.tweens.killTweensOf(this.sleepingAsset);
-      this.sleepingAsset.destroy();
-      this.sleepingAsset = null;
+    if (this.spriteAsset) {
+      this.scene.tweens.killTweensOf(this.spriteAsset);
+      this.spriteAsset.destroy();
+      this.spriteAsset = null;
     }
     this.scene.tweens.killTweensOf(this);
     this.scene.tweens.killTweensOf(this.leftEar);
@@ -324,7 +353,7 @@ export class Bunny extends Phaser.GameObjects.Container {
 
   private setDrawnBodyVisible(visible: boolean) {
     this.list.forEach(child => {
-      if (child !== this.nameLabel && child !== this.zzz && child !== this.sleepingAsset) {
+      if (child !== this.nameLabel && child !== this.zzz && child !== this.spriteAsset) {
         (child as Phaser.GameObjects.GameObject & { setVisible?: (value: boolean) => void }).setVisible?.(visible);
       }
     });
