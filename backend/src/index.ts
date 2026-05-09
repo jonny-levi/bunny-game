@@ -134,7 +134,20 @@ wss.on('connection', async (ws: WebSocket, req) => {
       return;
     }
   } else {
-    console.log(`🔌 ${playerName} connected to family ${familyId}`);
+    try {
+      const player = await db.getPlayerById(playerId);
+      if (!player || player.familyId !== familyId) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Player is not allowed to access this save' }));
+        ws.close();
+        return;
+      }
+      console.log(`🔌 ${playerName} connected to family ${familyId}`);
+    } catch (err) {
+      console.error('WS ownership check failed:', err);
+      ws.send(JSON.stringify({ type: 'error', message: 'Failed to validate player' }));
+      ws.close();
+      return;
+    }
   }
 
   handleConnection(ws, familyId, playerId, playerName);
