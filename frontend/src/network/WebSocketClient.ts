@@ -1,4 +1,6 @@
 import { WS_URL } from '../config';
+import { saveClient } from './SaveClient';
+import { hydrateIdentities } from '../state/identityRegistry';
 
 export interface BunnyState {
   id: string;
@@ -61,6 +63,9 @@ export class WebSocketClient {
         const data = await res.json();
         this.familyId = data.player?.familyId || data.family?.id || '';
         this.playerId = data.player?.id || '';
+        saveClient.setPlayerId(this.playerId);
+        const save = await saveClient.loadSave().catch((err) => { console.warn('Save load failed, using local fallback', err); return null; });
+        if (save) hydrateIdentities(save);
         console.log('Login success:', { familyId: this.familyId, playerId: this.playerId });
       } else {
         console.warn('Login failed with status:', res.status);

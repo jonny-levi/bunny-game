@@ -13,6 +13,8 @@ import { stopAllTicks } from './game/tick';
 import { generateBunnyName } from './game/names';
 import { catchUpFamily } from './game/tick';
 import { broadcastToFamily } from './ws/rooms';
+import { applyAction as applySaveAction, applyDecay as applySaveDecay, deriveBabyIdentity, sanitizeEgg, sanitizeIdentity } from './game/save';
+import type { CareAction } from './shared/saveTypes';
 
 const app = express();
 app.use(cors());
@@ -62,6 +64,93 @@ app.post('/login', async (req, res) => {
     res.json({ player, family });
   } catch (err: any) {
     console.error('Login error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+
+async function requirePlayer(req: express.Request, res: express.Response) {
+  const userId = req.header('x-player-id') || req.query.userId;
+  if (!userId || typeof userId !== 'string') {
+    res.status(401).json({ error: 'x-player-id header is required' });
+    return null;
+  }
+  const player = await db.getPlayerById(userId);
+  if (!player) {
+    res.status(404).json({ error: 'Player not found' });
+    return null;
+  }
+  return player;
+}
+
+async function getCaughtUpSave(playerId: string) {
+  const save = await db.getOrCreatePlayerSave(playerId);
+  const now = new Date();
+  const lastTick = new Date(save.lastTick).getTime();
+  const needs = applySaveDecay(save.needs, now.getTime() - lastTick);
+  return db.updatePlayerSave(playerId, { needs, lastTick: now });
+}
+
+app.get('/api/save', async (req, res) => {
+  try {
+    const player = await requirePlayer(req, res);
+    if (!player) return;
+    res.json(await getCaughtUpSave(player.id));
+  } catch (err: any) {
+    console.error('Save fetch error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/save/needs', async (req, res) => {
+  try {
+    const player = await requirePlayer(req, res);
+    if (!player) return;
+    const action = req.body?.action as CareAction | undefined;
+    if (action && !['feed', 'sleep', 'bathe', 'play', 'vet'].includes(action)) {
+      return res.status(400).json({ error: 'Unsupported action' });
+    }
+    const caughtUp = await getCaughtUpSave(player.id);
+    const now = new Date();
+    const needs = action ? applySaveAction(caughtUp.needs, action) : caughtUp.needs;
+    const save = await db.updatePlayerSave(player.id, { needs, lastTick: now });
+    res.json(save);
+  } catch (err: any) {
+    console.error('Save needs error:', err);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/api/save/hatch', async (req, res) => {
+  try {
+    const player = await requirePlayer(req, res);
+    if (!player) return;
+    const save = await getCaughtUpSave(player.id);
+    if (save.egg.hatched || save.baby) {
+      return res.status(409).json({ error: 'Egg already hatched', save });
+    }
+
+    const father = sanitizeIdentity(req.body?.father, 'father') ?? save.father;
+    const mother = sanitizeIdentity(req.body?.mother, 'mother') ?? save.mother;
+    const requestedEgg = sanitizeEgg(req.body?.egg ?? save.egg);
+    const egg = {
+      ...requestedEgg,
+      taps: Math.max(save.egg.taps, requestedEgg.taps),
+      seed: requestedEgg.seed || save.egg.seed,
+      hatched: false,
+    };
+
+    if (!father || !mother || egg.taps < 8) {
+      return res.status(400).json({ error: 'Father, mother, and 8 egg taps are required' });
+    }
+
+    egg.hatched = true;
+    egg.taps = 8;
+    const baby = deriveBabyIdentity(father, mother, egg.seed);
+    const updated = await db.updatePlayerSave(player.id, { father, mother, baby, egg, lastTick: new Date() });
+    res.json(updated);
+  } catch (err: any) {
+    console.error('Save hatch error:', err);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

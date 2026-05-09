@@ -298,11 +298,19 @@ export class OnboardingNestScene extends Phaser.Scene {
     }
   }
 
-  private startHatch() {
+  private async startHatch() {
     this.hatching = true;
     this.tapHint.setText('💖 The egg is hatching! 💖');
     playHatch();
-    const baby = performHatch();
+    let baby: CharacterIdentity;
+    try {
+      const { saveClient } = await import('../network/SaveClient');
+      const serverSave = await saveClient.hatch(getIdentities());
+      baby = performHatch(serverSave?.baby ?? null);
+    } catch (err) {
+      console.warn('Server hatch failed, using local fallback', err);
+      baby = performHatch();
+    }
 
     this.tweens.killTweensOf(this.eggContainer);
     this.tweens.add({

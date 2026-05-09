@@ -1,5 +1,7 @@
 import { pool } from './pool';
 import type { Bunny, Player, Family, ActivityLogEntry } from '../shared/types';
+import type { PlayerSave, SaveIdentity, SaveNeeds } from '../shared/saveTypes';
+import { defaultSave, normalizeNeeds } from '../game/save';
 
 // Row mappers
 function mapBunny(row: any): Bunny {
@@ -150,4 +152,91 @@ export async function getRecentActivity(familyId: string, limit = 50): Promise<A
     id: r.id, familyId: r.family_id, playerId: r.player_id, bunnyId: r.bunny_id,
     action: r.action, message: r.message, createdAt: r.created_at?.toISOString(),
   }));
+}
+
+
+function identity(role: 'father' | 'mother' | 'baby', index: unknown): SaveIdentity | null {
+  const n = Number(index);
+  return Number.isInteger(n) && n >= 1 && n <= 100 ? { role, identityIndex: n } : null;
+}
+
+function mapPlayerSave(row: any, playerId: string): PlayerSave {
+  if (!row) return defaultSave(playerId);
+  return {
+    version: 1,
+    userId: playerId,
+    father: identity('father', row.father_identity),
+    mother: identity('mother', row.mother_identity),
+    baby: identity('baby', row.baby_identity),
+    egg: {
+      taps: Number(row.egg_taps ?? 0),
+      hatched: row.egg_hatched === true,
+      seed: Number(row.egg_seed ?? 0),
+    },
+    needs: normalizeNeeds({
+      hunger: Number(row.hunger),
+      energy: Number(row.energy),
+      hygiene: Number(row.hygiene),
+      affection: Number(row.affection),
+      health: Number(row.health),
+    }),
+    lastTick: row.last_tick?.toISOString?.() ?? new Date().toISOString(),
+    updatedAt: row.updated_at?.toISOString?.() ?? new Date().toISOString(),
+  };
+}
+
+export async function getOrCreatePlayerSave(playerId: string): Promise<PlayerSave> {
+  await pool.query(
+    `INSERT INTO player_saves (player_id)
+     VALUES ($1)
+     ON CONFLICT (player_id) DO NOTHING`,
+    [playerId],
+  );
+  const res = await pool.query('SELECT * FROM player_saves WHERE player_id = $1', [playerId]);
+  return mapPlayerSave(res.rows[0], playerId);
+}
+
+export async function updatePlayerSave(playerId: string, patch: {
+  father?: SaveIdentity | null;
+  mother?: SaveIdentity | null;
+  baby?: SaveIdentity | null;
+  egg?: { taps: number; hatched: boolean; seed: number };
+  needs?: SaveNeeds;
+  lastTick?: Date;
+}): Promise<PlayerSave> {
+  await getOrCreatePlayerSave(playerId);
+  const res = await pool.query(
+    `UPDATE player_saves SET
+      father_identity = COALESCE($2, father_identity),
+      mother_identity = COALESCE($3, mother_identity),
+      baby_identity = COALESCE($4, baby_identity),
+      egg_taps = COALESCE($5, egg_taps),
+      egg_hatched = COALESCE($6, egg_hatched),
+      egg_seed = COALESCE($7, egg_seed),
+      hunger = COALESCE($8, hunger),
+      energy = COALESCE($9, energy),
+      hygiene = COALESCE($10, hygiene),
+      affection = COALESCE($11, affection),
+      health = COALESCE($12, health),
+      last_tick = COALESCE($13, last_tick),
+      updated_at = NOW()
+     WHERE player_id = $1
+     RETURNING *`,
+    [
+      playerId,
+      patch.father?.identityIndex ?? null,
+      patch.mother?.identityIndex ?? null,
+      patch.baby?.identityIndex ?? null,
+      patch.egg?.taps ?? null,
+      patch.egg?.hatched ?? null,
+      patch.egg?.seed ?? null,
+      patch.needs?.hunger ?? null,
+      patch.needs?.energy ?? null,
+      patch.needs?.hygiene ?? null,
+      patch.needs?.affection ?? null,
+      patch.needs?.health ?? null,
+      patch.lastTick ?? null,
+    ],
+  );
+  return mapPlayerSave(res.rows[0], playerId);
 }
