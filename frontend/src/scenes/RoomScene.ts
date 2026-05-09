@@ -4,6 +4,7 @@ import { Bunny } from '../objects/Bunny';
 import { wsClient, type BunnyState } from '../network/WebSocketClient';
 import { getDayNightTint, getSeason } from '../utils/time';
 import { getIdentities, type CharacterIdentity } from '../state/identityRegistry';
+import { applyDecay, catchUpNeeds, legacyStatsFromNeeds, NEEDS_BALANCE, normalizeNeeds, readNeedsState, writeNeedsState, type NeedsState } from '../state/needs';
 import type { LifeStage } from '../config';
 import { isCareAction, type CareAction } from '../game/actions';
 
@@ -13,6 +14,33 @@ const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
 export let gameBunnies: BunnyState[] = [];
 export let selectedBunnyId: string | null = null;
 export let activityLog: string[] = [];
+
+let localNeedsState: NeedsState = catchUpNeeds(readNeedsState());
+writeNeedsState(localNeedsState);
+
+function isServerBackedBunny(bunny: BunnyState): boolean {
+  return bunny.id !== 'father' && bunny.id !== 'mother' && bunny.id !== 'baby';
+}
+
+function syncBabyNeedsToLocalState() {
+  const baby = gameBunnies.find(b => (b.id === 'baby' || b.stage === 'baby') && !isServerBackedBunny(b));
+  if (!baby) return;
+  localNeedsState.needs = normalizeNeeds({
+    hunger: baby.hunger,
+    energy: baby.energy,
+    cleanliness: baby.cleanliness,
+    happiness: baby.happiness,
+    health: baby.health,
+  });
+  localNeedsState.lastTick = Date.now();
+  writeNeedsState(localNeedsState);
+}
+
+function applyLocalNeedsToBaby() {
+  const baby = gameBunnies.find(b => (b.id === 'baby' || b.stage === 'baby') && !isServerBackedBunny(b));
+  if (!baby) return;
+  Object.assign(baby, legacyStatsFromNeeds(localNeedsState.needs));
+}
 
 export function setSelectedBunny(id: string | null) { selectedBunnyId = id; }
 export function addActivity(msg: string) {
@@ -25,15 +53,15 @@ export function ensureDemoBunnies() {
     gameBunnies = [
       { id: 'father', name: 'Mochi', color: 'white', pattern: null, stage: 'adult', hunger: 75, happiness: 80, cleanliness: 60, energy: 70, health: 85, isAlive: true, parentAId: null, parentBId: null },
       { id: 'mother', name: 'Luna', color: 'brown', pattern: null, stage: 'adult', hunger: 82, happiness: 88, cleanliness: 76, energy: 64, health: 90, isAlive: true, parentAId: null, parentBId: null },
-      { id: 'baby', name: 'Boba', color: 'pink', pattern: null, stage: 'baby', hunger: 90, happiness: 95, cleanliness: 80, energy: 50, health: 90, isAlive: true, parentAId: 'father', parentBId: 'mother' },
+      { id: 'baby', name: 'Boba', color: 'pink', pattern: null, stage: 'baby', ...legacyStatsFromNeeds(localNeedsState.needs), isAlive: true, parentAId: 'father', parentBId: 'mother' },
     ];
   }
 }
 
-wsClient.onState((state) => { gameBunnies = state.bunnies; });
+wsClient.onState((state) => { gameBunnies = state.bunnies; syncBabyNeedsToLocalState(); });
 wsClient.onEvent((event) => {
   if (event.message) addActivity(event.message);
-  if (event.type === 'state' && event.bunnies) gameBunnies = event.bunnies;
+  if (event.type === 'state' && event.bunnies) { gameBunnies = event.bunnies; syncBabyNeedsToLocalState(); }
 });
 
 export abstract class RoomScene extends Phaser.Scene {
@@ -59,7 +87,21 @@ export abstract class RoomScene extends Phaser.Scene {
       fontSize: '20px',
     }).setDepth(6);
 
+    applyLocalNeedsToBaby();
     this.spawnBunnies();
+
+    this.time.addEvent({
+      delay: NEEDS_BALANCE.tickMs,
+      loop: true,
+      callback: () => {
+        localNeedsState = {
+          needs: applyDecay(localNeedsState.needs, NEEDS_BALANCE.tickMs),
+          lastTick: Date.now(),
+        };
+        writeNeedsState(localNeedsState);
+        applyLocalNeedsToBaby();
+      },
+    });
 
     this.time.addEvent({
       delay: 60000,
@@ -107,7 +149,7 @@ export abstract class RoomScene extends Phaser.Scene {
     if (!b) return;
 
     const playerName = this.registry.get('playerName') || 'Someone';
-    const emojis: Record<string, string> = { feed: '🍳', clean: '🛁', play: '🎾', sleep: '💤', medicine: '💊', breed: '💕' };
+    const emojis: Record<CareAction, string> = { feed: '🍳', clean: '🛁', play: '🎾', sleep: '💤', medicine: '💊', breed: '💕' };
 
     switch (action) {
       case 'feed': b.hunger = Math.min(100, b.hunger + 25); break;
@@ -115,6 +157,18 @@ export abstract class RoomScene extends Phaser.Scene {
       case 'play': b.happiness = Math.min(100, b.happiness + 20); break;
       case 'sleep': b.energy = Math.min(100, b.energy + 30); break;
       case 'medicine': b.health = Math.min(100, b.health + 20); break;
+    }
+
+    if ((b.id === 'baby' || b.stage === 'baby') && !isServerBackedBunny(b)) {
+      localNeedsState.needs = normalizeNeeds({
+        hunger: b.hunger,
+        energy: b.energy,
+        cleanliness: b.cleanliness,
+        happiness: b.happiness,
+        health: b.health,
+      });
+      localNeedsState.lastTick = Date.now();
+      writeNeedsState(localNeedsState);
     }
 
     const verbs: Record<CareAction, string> = {
