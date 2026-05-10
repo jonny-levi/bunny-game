@@ -69,12 +69,22 @@ app.post('/login', async (req, res) => {
 });
 
 
+function isUuid(value: string): boolean {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+
 async function requirePlayer(req: express.Request, res: express.Response) {
   const userId = req.header('x-player-id') || req.query.userId;
   if (!userId || typeof userId !== 'string') {
     res.status(401).json({ error: 'x-player-id header is required' });
     return null;
   }
+
+  if (!isUuid(userId)) {
+    res.status(404).json({ error: 'Player not found' });
+    return null;
+  }
+
   const player = await db.getPlayerById(userId);
   if (!player) {
     res.status(404).json({ error: 'Player not found' });
