@@ -5,6 +5,7 @@ import { ActionButton } from '../objects/ActionButton';
 import { gameBunnies, selectedBunnyId } from './RoomScene';
 import { toggleMute, isMuted } from '../utils/sound';
 import { ACTION_COOLDOWNS, CARE_ACTIONS, type CareAction } from '../game/actions';
+import { addIcon } from '../ui/Icon';
 
 const HUD_PREF_KEY = 'bunny:hud-expanded';
 const SIDE_PANEL_WIDTH = 184;
@@ -16,7 +17,7 @@ const PLAY_AREA_HEIGHT = 480;
 export class HUDScene extends Phaser.Scene {
   private statBars: { hunger: StatBar; happiness: StatBar; cleanliness: StatBar; energy: StatBar; health: StatBar } | null = null;
   private bunnyNameText!: Phaser.GameObjects.Text;
-  private muteBtn!: Phaser.GameObjects.Text;
+  private muteBtn!: Phaser.GameObjects.Image;
   private roomLabel!: Phaser.GameObjects.Text;
   private actionButtons = new Map<CareAction, ActionButton>();
   private cooldownUntil = new Map<CareAction, number>();
@@ -69,7 +70,7 @@ export class HUDScene extends Phaser.Scene {
     this.panel.add(this.panelBg);
 
     this.toggleBtn = this.add.text(0, 0, '', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '15px',
       color: '#ffffff',
       backgroundColor: '#ff6b9d',
@@ -84,7 +85,7 @@ export class HUDScene extends Phaser.Scene {
     this.panel.add(this.toggleBtn);
 
     this.compactSummary = this.add.text(0, 0, '🐰\n--', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '12px',
       color: '#ffffff',
       align: 'center',
@@ -96,7 +97,7 @@ export class HUDScene extends Phaser.Scene {
     this.panel.add(this.expandedContent);
 
     this.bunnyNameText = this.add.text(12, 14, 'Select a bunny', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '13px',
       color: '#ff6b9d',
       fontStyle: 'bold',
@@ -133,12 +134,12 @@ export class HUDScene extends Phaser.Scene {
       this.expandedContent.add(btn);
     });
 
-    this.muteBtn = this.add.text(SIDE_PANEL_WIDTH - 22, PLAY_AREA_HEIGHT - 62, isMuted() ? '🔇' : '🔊', {
-      fontSize: '18px',
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true });
+    const initialMuteIcon = addIcon(this, isMuted() ? 'mute' : 'unmute', SIDE_PANEL_WIDTH - 22, PLAY_AREA_HEIGHT - 62, 22)
+      .setInteractive({ useHandCursor: true });
+    this.muteBtn = initialMuteIcon;
     this.muteBtn.on('pointerdown', () => {
       const muted = toggleMute();
-      this.muteBtn.setText(muted ? '🔇' : '🔊');
+      this.muteBtn.setTexture(muted ? 'ui-icon-mute' : 'ui-icon-unmute');
     });
     this.expandedContent.add(this.muteBtn);
 
@@ -184,7 +185,7 @@ export class HUDScene extends Phaser.Scene {
 
   private createRoomLabel() {
     this.roomLabel = this.add.text(GAME_WIDTH / 2, 12, '', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '16px',
       color: '#ffffff',
       stroke: '#333333',

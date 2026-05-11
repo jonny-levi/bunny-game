@@ -94,11 +94,11 @@ export class OnboardingNestScene extends Phaser.Scene {
     this.addAssetImage(fatherRef, GAME_WIDTH - 180, baseY, 130, 600);
 
     this.add.text(180, baseY + 80, 'Mother', {
-      fontFamily: 'Arial, sans-serif', fontSize: '14px',
+      fontFamily: 'Nunito, Arial, sans-serif', fontSize: '14px',
       color: '#ffffff', stroke: '#333333', strokeThickness: 3, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(3);
     this.add.text(GAME_WIDTH - 180, baseY + 80, 'Father', {
-      fontFamily: 'Arial, sans-serif', fontSize: '14px',
+      fontFamily: 'Nunito, Arial, sans-serif', fontSize: '14px',
       color: '#ffffff', stroke: '#333333', strokeThickness: 3, fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(3);
   }
@@ -177,7 +177,7 @@ export class OnboardingNestScene extends Phaser.Scene {
 
   private drawIntroText() {
     this.add.text(GAME_WIDTH / 2, 32, '💕 A new bunny family 💕', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '20px',
       color: '#ff6b9d',
       stroke: '#ffffff',
@@ -186,7 +186,7 @@ export class OnboardingNestScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(5);
 
     this.tapHint = this.add.text(GAME_WIDTH / 2, 70, 'Tap the egg to help your baby hatch!', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '14px',
       color: '#ffffff',
       stroke: '#333333',

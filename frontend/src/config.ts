@@ -1,27 +1,29 @@
 export const GAME_WIDTH = 800;
 export const GAME_HEIGHT = 600;
 
+import { actionColors, needColors, palette } from './ui/tokens';
+
 export const WS_URL = `ws://${window.location.host}/ws`;
 
 export const COLORS = {
   bg: 0x0f0f23,
-  panel: 0x1e1e3f,
-  panelLight: 0x2e2e5f,
-  accent: 0xff6b9d,
-  accentLight: 0xffa3c4,
-  text: 0xffffff,
-  textDark: 0x1e1e3f,
-  hunger: 0xff6b6b,
-  happiness: 0xffd93d,
-  cleanliness: 0x6bcbff,
-  energy: 0xb06bff,
-  health: 0x51cf66,
-  btnFeed: 0xff7eb3,
-  btnClean: 0x7ec8e3,
-  btnPlay: 0xffd166,
-  btnSleep: 0xc39bd3,
-  btnMedicine: 0x82e0aa,
-  btnBreed: 0xf1948a,
+  panel: palette.plumDeep,
+  panelLight: palette.plum,
+  accent: palette.brandPink,
+  accentLight: palette.brandPinkLight,
+  text: palette.white,
+  textDark: palette.ink,
+  hunger: needColors.hunger,
+  happiness: needColors.happiness,
+  cleanliness: needColors.cleanliness,
+  energy: needColors.energy,
+  health: needColors.health,
+  btnFeed: actionColors.feed,
+  btnClean: actionColors.clean,
+  btnPlay: actionColors.play,
+  btnSleep: actionColors.sleep,
+  btnMedicine: actionColors.medicine,
+  btnBreed: actionColors.breed,
 };
 
 export const BUNNY_COLORS: Record<string, number> = {

@@ -68,7 +68,7 @@ export class LoginScene extends Phaser.Scene {
 
     // Title
     this.add.text(cx, cy - 40, '🐰 Bunny Family 🐰', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '28px',
       color: '#ff6b9d',
       stroke: '#1a1a3e',
@@ -77,7 +77,7 @@ export class LoginScene extends Phaser.Scene {
     }).setOrigin(0.5);
 
     this.add.text(cx, cy + 5, "Who's playing?", {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '16px',
       color: '#ffffff',
       fontStyle: 'bold',
@@ -88,7 +88,7 @@ export class LoginScene extends Phaser.Scene {
     this.createPlayerButton(cx + 100, cy + 60, '💜 Elina', 0xce93d8, 'Elina');
 
     this.add.text(cx, cy + 120, 'Take care of your bunnies together!', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '12px',
       color: '#ffffff',
     }).setOrigin(0.5).setAlpha(0.5);
@@ -106,7 +106,7 @@ export class LoginScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true });
 
     this.add.text(x, y, text, {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '16px',
       color: '#ffffff',
       stroke: '#00000033',

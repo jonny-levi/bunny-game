@@ -45,7 +45,7 @@ export class VetScene extends RoomScene {
 
     // Certificate
     this.add.rectangle(350, 100, 75, 55, 0xfffff0).setStrokeStyle(3, 0xffd54f);
-    this.add.text(350, 95, 'Dr. Hop', { fontFamily: 'Arial, sans-serif', fontSize: '9px', color: '#333', fontStyle: 'bold' }).setOrigin(0.5);
+    this.add.text(350, 95, 'Dr. Hop', { fontFamily: 'Nunito, Arial, sans-serif', fontSize: '9px', color: '#333', fontStyle: 'bold' }).setOrigin(0.5);
     this.add.text(350, 108, '🏆', { fontSize: '12px' }).setOrigin(0.5);
 
     // Heart monitor (decorative)

@@ -18,7 +18,7 @@ export class ActionButton extends Phaser.GameObjects.Container {
     this.add(this.bg);
 
     this.label = scene.add.text(0, 0, text, {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '13px',
       color: '#ffffff',
       stroke: '#00000044',
@@ -28,7 +28,7 @@ export class ActionButton extends Phaser.GameObjects.Container {
     this.add(this.label);
 
     this.cooldownText = scene.add.text(0, height / 2 - 10, '', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '10px',
       color: '#ffffff',
       stroke: '#00000088',

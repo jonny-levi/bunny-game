@@ -149,7 +149,7 @@ export class Bunny extends Phaser.GameObjects.Container {
 
     // Name label
     this.nameLabel = scene.add.text(0, 62 * s, name, {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: `${Math.max(10, 12 * s)}px`,
       color: '#ffffff',
       stroke: '#333333',
