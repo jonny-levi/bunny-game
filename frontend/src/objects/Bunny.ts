@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { BUNNY_COLORS, type LifeStage } from '../config';
 import { cssPalette, palette, typography } from '../ui/tokens';
 import { assetFor, bunnyAssetRef, type BunnyAssetRef, type CharacterIdentity, type CharacterState } from '../state/identityRegistry';
+import { prefersReducedMotion, motionDuration } from '../utils/accessibility';
 
 export class Bunny extends Phaser.GameObjects.Container {
   private bodyShape: Phaser.GameObjects.Ellipse;
@@ -273,6 +274,7 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.stopAnim();
     const idleAsset = this.getIdleAssetRef();
     if (idleAsset) this.showSpriteAsset(idleAsset);
+    if (prefersReducedMotion()) return;
     this.bounceTimer = this.scene.time.addEvent({
       delay: 1200,
       loop: true,
@@ -280,7 +282,7 @@ export class Bunny extends Phaser.GameObjects.Container {
         this.scene.tweens.add({
           targets: this,
           y: this.y - 8,
-          duration: 400,
+          duration: motionDuration(400),
           yoyo: true,
           ease: 'Sine.easeInOut',
         });
@@ -300,7 +302,7 @@ export class Bunny extends Phaser.GameObjects.Container {
           targets: this,
           scaleX: 1.06,
           scaleY: 0.94,
-          duration: 150,
+          duration: motionDuration(150),
           yoyo: true,
           ease: 'Sine.easeInOut',
         });
@@ -319,7 +321,7 @@ export class Bunny extends Phaser.GameObjects.Container {
           targets: spriteAsset,
           scaleX: spriteAsset.scaleX * 1.03,
           scaleY: spriteAsset.scaleY * 1.03,
-          duration: 1300,
+          duration: motionDuration(1300),
           yoyo: true,
           repeat: -1,
           ease: 'Sine.easeInOut',
@@ -336,8 +338,8 @@ export class Bunny extends Phaser.GameObjects.Container {
       targets: this.zzz,
       y: -100,
       alpha: 0,
-      duration: 2000,
-      repeat: -1,
+      duration: motionDuration(2000),
+      repeat: prefersReducedMotion() ? 0 : -1,
       onRepeat: () => { if (this.zzz) { this.zzz.y = -60; this.zzz.alpha = 1; } },
     });
   }
@@ -354,7 +356,7 @@ export class Bunny extends Phaser.GameObjects.Container {
           targets: this,
           y: this.y - 25,
           angle: Phaser.Math.Between(-12, 12),
-          duration: 250,
+          duration: motionDuration(250),
           yoyo: true,
           ease: 'Back.easeOut',
         });
@@ -379,7 +381,7 @@ export class Bunny extends Phaser.GameObjects.Container {
       y: text.y - 46,
       alpha: 0,
       scale: { from: 1.08, to: 0.86 },
-      duration: 1200,
+      duration: motionDuration(1200),
       ease: 'Cubic.easeOut',
       onComplete: () => text.destroy(),
     });
@@ -389,7 +391,8 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.stopAnim();
     this.animState = 'bathing';
     this.showSpriteAsset(this.getAssetRef(this.getRole() === 'baby' ? 'playing' : 'normal'));
-    for (let i = 0; i < 7; i++) {
+    const bubbleCount = prefersReducedMotion() ? 1 : 7;
+    for (let i = 0; i < bubbleCount; i++) {
       const bubble = this.scene.add.circle(Phaser.Math.Between(-28, 28), Phaser.Math.Between(-8, 42), Phaser.Math.Between(4, 9), palette.sky, 0.44);
       bubble.setStrokeStyle(1, palette.white, 0.65);
       this.actionProps.push(bubble);
@@ -400,9 +403,9 @@ export class Bunny extends Phaser.GameObjects.Container {
         y: bubble.y - Phaser.Math.Between(36, 70),
         alpha: 0,
         scale: 1.45,
-        duration: Phaser.Math.Between(850, 1350),
-        repeat: -1,
-        delay: i * 90,
+        duration: motionDuration(Phaser.Math.Between(850, 1350)),
+        repeat: prefersReducedMotion() ? 0 : -1,
+        delay: prefersReducedMotion() ? 0 : i * 90,
         ease: 'Sine.easeOut',
       });
     }
@@ -410,7 +413,7 @@ export class Bunny extends Phaser.GameObjects.Container {
       delay: 420,
       loop: true,
       callback: () => {
-        this.scene.tweens.add({ targets: this, angle: { from: -4, to: 4 }, duration: 210, yoyo: true, ease: 'Sine.easeInOut' });
+        this.scene.tweens.add({ targets: this, angle: { from: -4, to: 4 }, duration: motionDuration(210), yoyo: true, ease: 'Sine.easeInOut' });
       },
     });
   }
@@ -429,13 +432,13 @@ export class Bunny extends Phaser.GameObjects.Container {
     }).setOrigin(0.5);
     this.actionProps.push(heart, cross);
     this.add([heart, cross]);
-    this.scene.tweens.add({ targets: heart, y: -105, alpha: 0.2, scale: 1.25, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
-    this.scene.tweens.add({ targets: cross, angle: 360, duration: 1600, repeat: -1, ease: 'Linear' });
+    this.scene.tweens.add({ targets: heart, y: -105, alpha: 0.2, scale: 1.25, duration: motionDuration(900), yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.scene.tweens.add({ targets: cross, angle: 360, duration: motionDuration(1600), repeat: -1, ease: 'Linear' });
     this.bounceTimer = this.scene.time.addEvent({
       delay: 650,
       loop: true,
       callback: () => {
-        this.scene.tweens.add({ targets: this, scaleX: 1.03, scaleY: 0.97, duration: 240, yoyo: true, ease: 'Sine.easeInOut' });
+        this.scene.tweens.add({ targets: this, scaleX: 1.03, scaleY: 0.97, duration: motionDuration(240), yoyo: true, ease: 'Sine.easeInOut' });
       },
     });
   }
@@ -454,8 +457,8 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.stopAnim();
     this.animState = 'sad';
     this.mouth.setAngle(180);
-    this.scene.tweens.add({ targets: this.leftEar, angle: -25, duration: 500 });
-    this.scene.tweens.add({ targets: this.rightEar, angle: 25, duration: 500 });
+    this.scene.tweens.add({ targets: this.leftEar, angle: -25, duration: motionDuration(500) });
+    this.scene.tweens.add({ targets: this.rightEar, angle: 25, duration: motionDuration(500) });
   }
 
   playSick() {
@@ -465,7 +468,7 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.scene.tweens.add({
       targets: this,
       angle: { from: -3, to: 3 },
-      duration: 200,
+      duration: motionDuration(200),
       repeat: -1,
       yoyo: true,
     });
@@ -566,12 +569,13 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.scene.tweens.killTweensOf(this.selectionRing);
     if (selected) {
       this.selectionRing.setAlpha(0.95);
+      if (prefersReducedMotion()) return;
       this.scene.tweens.add({
         targets: this.selectionRing,
         scaleX: 1.12,
         scaleY: 1.18,
         alpha: 0.42,
-        duration: 720,
+        duration: motionDuration(720),
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',

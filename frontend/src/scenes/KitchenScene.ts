@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../config';
 import { RoomScene } from './RoomScene';
+import { prefersReducedMotion } from '../utils/accessibility';
 
 const H = 480;
 
@@ -16,8 +17,8 @@ export class KitchenScene extends RoomScene {
     super.create();
     this.bunnyObjects.forEach(b => {
       b.playEating();
-      this.playRoomActionFlair('feed', b);
-      this.time.delayedCall(3000, () => b.startIdleBounce());
+      if (!prefersReducedMotion()) this.playRoomActionFlair('feed', b);
+      this.time.delayedCall(prefersReducedMotion() ? 300 : 3000, () => b.startIdleBounce());
     });
   }
 }

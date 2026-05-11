@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { playClick } from '../utils/sound';
 import { addIcon, type IconName } from '../ui/Icon';
 import { cssPalette, palette, typography } from '../ui/tokens';
+import { motionDuration } from '../utils/accessibility';
 
 export class ActionButton extends Phaser.GameObjects.Container {
   private bg: Phaser.GameObjects.Rectangle;
@@ -19,7 +20,7 @@ export class ActionButton extends Phaser.GameObjects.Container {
 
     this.baseColor = color;
     this.bg = scene.add.rectangle(0, 0, 58, 58, color, 0.96)
-      .setStrokeStyle(2, palette.white, 0.52)
+      .setStrokeStyle(3, palette.plumDeep, 0.72)
       .setInteractive({ useHandCursor: true });
     this.add(this.bg);
 
@@ -29,7 +30,7 @@ export class ActionButton extends Phaser.GameObjects.Container {
     this.label = scene.add.text(0, 40, text, {
       fontFamily: typography.families.body,
       fontSize: '11px',
-      color: cssPalette.plumDeep,
+      color: '#201832',
       fontStyle: 'bold',
     }).setOrigin(0.5);
     this.add(this.label);
@@ -50,17 +51,17 @@ export class ActionButton extends Phaser.GameObjects.Container {
     this.bg.on('pointerover', () => {
       if (this.disabled) return;
       this.bg.setFillStyle(this.baseColor, 1);
-      this.scene.tweens.add({ targets: this, scale: 1.06, duration: 110, ease: 'Back.easeOut' });
+      this.scene.tweens.add({ targets: this, scale: 1.06, duration: motionDuration(110), ease: 'Back.easeOut' });
     });
     this.bg.on('pointerout', () => {
       if (this.disabled) return;
       this.bg.setFillStyle(this.baseColor, 0.96);
-      this.scene.tweens.add({ targets: this, scale: 1, duration: 110, ease: 'Sine.easeOut' });
+      this.scene.tweens.add({ targets: this, scale: 1, duration: motionDuration(110), ease: 'Sine.easeOut' });
     });
     this.bg.on('pointerdown', () => {
       if (this.disabled) return;
       playClick();
-      this.scene.tweens.add({ targets: this, scale: 0.94, duration: 70, yoyo: true, ease: 'Sine.easeOut' });
+      this.scene.tweens.add({ targets: this, scale: 0.94, duration: motionDuration(70), yoyo: true, ease: 'Sine.easeOut' });
       onClick();
     });
 

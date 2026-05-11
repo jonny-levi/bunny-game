@@ -7,6 +7,7 @@ import { cycleVolume, getVolume, getVolumeLabel } from '../utils/sound';
 import { ACTION_COOLDOWNS, CARE_ACTIONS, type CareAction } from '../game/actions';
 import { addIcon, type IconName } from '../ui/Icon';
 import { cssPalette, palette, typography } from '../ui/tokens';
+import { announce, motionDuration } from '../utils/accessibility';
 
 const HUD_PREF_KEY = 'bunny:hud-expanded';
 const SIDE_PANEL_WIDTH = 184;
@@ -31,6 +32,10 @@ export class HUDScene extends Phaser.Scene {
   private expandedContent!: Phaser.GameObjects.Container;
   private hudExpanded = true;
   private isMobile = false;
+  private keyboardMode = false;
+  private helpPanel?: Phaser.GameObjects.Container;
+  private focusOutline?: Phaser.GameObjects.Rectangle;
+  private focusedButton = 0;
 
   constructor() { super({ key: 'HUDScene' }); }
 
@@ -41,6 +46,7 @@ export class HUDScene extends Phaser.Scene {
     this.createSidePanel();
     this.createNavigation();
     this.createRoomLabel();
+    this.installKeyboardShortcuts();
 
     this.scale.on('resize', () => this.layoutPanel());
 
@@ -328,9 +334,10 @@ export class HUDScene extends Phaser.Scene {
       }
     }
     if (currentKey === next) return;
+    announce(`Entered ${this.roomAnnouncement(next)}`);
     const currentScene = currentKey ? this.scene.get(currentKey) : null;
     if (currentScene) {
-      currentScene.cameras.main.fadeOut(200);
+      currentScene.cameras.main.fadeOut(motionDuration(200));
       currentScene.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.stop(currentKey);
         this.scene.start(next);
@@ -354,12 +361,100 @@ export class HUDScene extends Phaser.Scene {
     const next = rooms[(idx + dir + rooms.length) % rooms.length];
     const currentScene = this.scene.get(currentKey);
     if (currentScene) {
-      currentScene.cameras.main.fadeOut(200);
+      currentScene.cameras.main.fadeOut(motionDuration(200));
       currentScene.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.stop(currentKey);
         this.scene.start(next);
       });
     }
+  }
+
+  private installKeyboardShortcuts() {
+    const kb = this.input.keyboard;
+    if (!kb) return;
+    kb.on('keydown-TAB', (event: KeyboardEvent) => {
+      event.preventDefault();
+      this.keyboardMode = true;
+      this.focusedButton = (this.focusedButton + 1) % CARE_ACTIONS.length;
+      this.drawFocusOutline();
+      const activeRoom = this.getActiveRoomScene();
+      if (activeRoom && 'selectNextBunny' in activeRoom) (activeRoom as any).selectNextBunny();
+    });
+    kb.on('keydown', (event: KeyboardEvent) => {
+      if (event.key === '[') this.cycleActiveRoom(-1);
+      if (event.key === ']') this.cycleActiveRoom(1);
+      if (event.key === '?') this.toggleHelpPanel();
+    });
+    CARE_ACTIONS.forEach((action, index) => {
+      kb.on(`keydown-${index + 1}`, () => {
+        this.keyboardMode = true;
+        this.focusedButton = index;
+        this.drawFocusOutline();
+        this.doRoomAction(action.action);
+      });
+    });
+  }
+
+  private getActiveRoomScene(): Phaser.Scene | null {
+    const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
+    return this.scene.manager.getScenes(true).find(scene => scene !== this && rooms.includes(scene.scene.key)) ?? null;
+  }
+
+  private cycleActiveRoom(dir: number) {
+    const active = this.getActiveRoomScene();
+    if (active && 'cycleRoom' in active) (active as any).cycleRoom(dir);
+  }
+
+  private roomAnnouncement(sceneKey: string): string {
+    const names: Record<string, string> = {
+      LivingRoomScene: 'Living Room', KitchenScene: 'Kitchen', BathroomScene: 'Bathroom',
+      GardenScene: 'Garden', BedroomScene: 'Bedroom', VetScene: 'Vet Office', NestScene: 'Cozy Nest',
+    };
+    return names[sceneKey] || sceneKey;
+  }
+
+  private drawFocusOutline() {
+    this.focusOutline?.destroy();
+    if (!this.keyboardMode || !this.hudExpanded) return;
+    const action = CARE_ACTIONS[this.focusedButton]?.action;
+    const button = action ? this.actionButtons.get(action) : null;
+    if (!button) return;
+    this.focusOutline = this.add.rectangle(this.panel.x + this.expandedContent.x + button.x, this.panel.y + this.expandedContent.y + button.y, 68, 68)
+      .setStrokeStyle(4, palette.plumDeep, 0.95)
+      .setDepth(95);
+    announce(`Focused ${CARE_ACTIONS[this.focusedButton].label}. Press ${this.focusedButton + 1} to use.`);
+  }
+
+  private toggleHelpPanel() {
+    if (this.helpPanel) {
+      this.helpPanel.destroy();
+      this.helpPanel = undefined;
+      announce('Keyboard shortcuts closed');
+      return;
+    }
+    const panel = this.add.container(GAME_WIDTH / 2, 250).setDepth(100);
+    const bg = this.add.rectangle(0, 0, 430, 250, palette.cream, 0.97)
+      .setStrokeStyle(3, palette.plumDeep, 0.9);
+    const copy = [
+      'Keyboard shortcuts',
+      'Tab: select next bunny',
+      '[ / ]: previous / next room',
+      '1 Feed  2 Clean  3 Play',
+      '4 Sleep  5 Vet  6 Breed',
+      'Arrow keys or WASD: move selected bunny',
+      '?: close this help panel',
+    ].join('\n');
+    const text = this.add.text(0, 0, copy, {
+      fontFamily: typography.families.body,
+      fontSize: '18px',
+      color: cssPalette.plumDeep,
+      align: 'center',
+      lineSpacing: 8,
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    panel.add([bg, text]);
+    this.helpPanel = panel;
+    announce('Keyboard shortcuts opened. Tab selects bunnies, brackets change rooms, one through six trigger actions.');
   }
 }
 

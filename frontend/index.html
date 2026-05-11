@@ -17,6 +17,17 @@
     }
     #game-container { position: relative; }
     canvas { display: block; }
+    .sr-only {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
   </style>
 
     <style>
@@ -25,7 +36,8 @@
     </style>
   </head>
 <body>
-  <div id="game-container"></div>
+  <div id="sr-status" class="sr-only" aria-live="polite" aria-atomic="true">Bunny Game loading</div>
+  <div id="game-container" role="application" aria-label="Bunny Game canvas. Use Tab to cycle bunnies, brackets to change rooms, number keys for actions, and question mark for help."></div>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
