@@ -28,6 +28,7 @@ export class OnboardingNestScene extends Phaser.Scene {
   private heartMeterMask!: Phaser.GameObjects.Graphics;
   private midHatchHintShown = false;
   private hatching = false;
+  private resumeBanner?: Phaser.GameObjects.Container;
 
   constructor() { super({ key: 'OnboardingNestScene' }); }
 
@@ -47,6 +48,8 @@ export class OnboardingNestScene extends Phaser.Scene {
     this.drawEgg();
     this.drawIntroText();
     this.drawProgress();
+
+    if (getIdentities().egg.taps > 0) this.showResumeCoachMark();
 
     // Restore visible crack progress from any prior session that quit mid-hatch.
     this.refreshCracks(getIdentities().egg.taps);
@@ -278,8 +281,41 @@ export class OnboardingNestScene extends Phaser.Scene {
     this.tweens.add({ targets: this.eggContainer, x: startX + 3, duration: 40, yoyo: true, repeat: 5, onComplete: () => this.eggContainer.setX(startX) });
   }
 
+  private showResumeCoachMark() {
+    const taps = getIdentities().egg.taps;
+    const remaining = Math.max(0, HATCH_TAPS - taps);
+    const banner = this.add.container(GAME_WIDTH / 2, 112).setDepth(12);
+    const bg = this.add.graphics();
+    bg.fillStyle(0xfff6e9, 0.96);
+    bg.fillRoundedRect(-188, -32, 376, 64, 18);
+    bg.lineStyle(2, 0xff6b9d, 0.22);
+    bg.strokeRoundedRect(-186, -30, 372, 60, 16);
+    const text = this.add.text(0, -4, `You're mid-hatch — ${remaining} taps to go!`, {
+      fontFamily: 'Nunito, Arial, sans-serif',
+      fontSize: '16px',
+      color: '#3e1e4f',
+      fontStyle: 'bold',
+    }).setOrigin(0.5);
+    const hint = this.add.text(0, 18, 'Tap the egg when you are ready.', {
+      fontFamily: 'Nunito, Arial, sans-serif',
+      fontSize: '12px',
+      color: '#8a2d52',
+    }).setOrigin(0.5);
+    banner.add([bg, text, hint]);
+    banner.setAlpha(0);
+    this.tweens.add({ targets: banner, alpha: 1, y: 104, duration: 220 });
+    this.resumeBanner = banner;
+    this.time.delayedCall(4200, () => {
+      if (!this.resumeBanner) return;
+      const target = this.resumeBanner;
+      this.resumeBanner = undefined;
+      this.tweens.add({ targets: target, alpha: 0, duration: 350, onComplete: () => target.destroy() });
+    });
+  }
+
   private handleTap() {
     if (this.hatching) return;
+    if (this.resumeBanner) { this.resumeBanner.destroy(); this.resumeBanner = undefined; }
     const beforeStage = getCrackStage();
     const egg = recordTap();
     const stage = getCrackStage(egg.taps);
