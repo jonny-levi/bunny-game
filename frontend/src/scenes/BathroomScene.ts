@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../config';
 import { RoomScene } from './RoomScene';
+import { prefersReducedMotion } from '../utils/accessibility';
 
 const H = 480;
 
@@ -17,8 +18,8 @@ export class BathroomScene extends RoomScene {
     super.create();
     this.bunnyObjects.forEach(b => {
       b.playBathing();
-      this.playRoomActionFlair('clean', b);
-      this.time.delayedCall(2200, () => b.startIdleBounce());
+      if (!prefersReducedMotion()) this.playRoomActionFlair('clean', b);
+      this.time.delayedCall(prefersReducedMotion() ? 300 : 2200, () => b.startIdleBounce());
     });
   }
 }

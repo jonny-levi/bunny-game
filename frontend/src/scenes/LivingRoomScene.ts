@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH } from '../config';
 import { RoomScene } from './RoomScene';
+import { motionDuration, prefersReducedMotion } from '../utils/accessibility';
 
 const H = 480; // play area height
 
@@ -16,7 +17,7 @@ export class LivingRoomScene extends RoomScene {
 
   drawRoom() {
     this.add.image(GAME_WIDTH / 2, H / 2, 'room-living').setDisplaySize(GAME_WIDTH, H);
-    if (this.enterWithCurtainWipe) this.playCurtainOpen();
+    if (this.enterWithCurtainWipe && !prefersReducedMotion()) this.playCurtainOpen();
   }
 
   private playCurtainOpen() {
@@ -25,7 +26,7 @@ export class LivingRoomScene extends RoomScene {
     this.tweens.add({
       targets: [curtain, glint],
       x: GAME_WIDTH + GAME_WIDTH / 2,
-      duration: 420,
+      duration: motionDuration(420),
       ease: 'Sine.easeInOut',
       onComplete: () => curtain.destroy(),
     });

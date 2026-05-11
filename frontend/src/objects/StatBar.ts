@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { addIcon, type IconName } from '../ui/Icon';
 import { cssPalette, palette, radii, typography } from '../ui/tokens';
+import { motionDuration } from '../utils/accessibility';
 
 export class StatBar extends Phaser.GameObjects.Container {
   private label: Phaser.GameObjects.Text;
@@ -28,7 +29,7 @@ export class StatBar extends Phaser.GameObjects.Container {
     this.label = scene.add.text(22, -9, labelText, {
       fontFamily: typography.families.body,
       fontSize: '10px',
-      color: cssPalette.plumDeep,
+      color: '#201832',
       fontStyle: 'bold',
     }).setOrigin(0, 0.5);
     this.add(this.label);
@@ -76,7 +77,7 @@ export class StatBar extends Phaser.GameObjects.Container {
       this.pulseTween = this.scene.tweens.add({
         targets: [...this.segments, this.alertDot],
         alpha: { from: 0.55, to: 1 },
-        duration: 420,
+        duration: motionDuration(420),
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut',

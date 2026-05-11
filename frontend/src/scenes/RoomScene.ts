@@ -11,10 +11,12 @@ import { isCareAction, type CareAction } from '../game/actions';
 import { playBreed, playClean, playFeed, playMedicine, playPlay, playSleep } from '../utils/sound';
 import { playSample } from '../utils/sampleAudio';
 import { needColors, palette, typography, cssPalette } from '../ui/tokens';
+import { announce, motionDuration, prefersReducedMotion } from '../utils/accessibility';
 
 const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
 const MOVE_BOUNDS = { minX: 60, maxX: GAME_WIDTH - 60, minY: 120, maxY: PLAY_AREA_HEIGHT - 60 };
 const ARROW_STEP = 14;
+const ROOM_SEQUENCE = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
 
 type StatKey = 'hunger' | 'energy' | 'happiness' | 'cleanliness' | 'health';
 const ACTION_STAT: Partial<Record<CareAction, StatKey>> = {
@@ -149,7 +151,8 @@ export abstract class RoomScene extends Phaser.Scene {
     });
 
     this.installKeyboardControls();
-    this.cameras.main.fadeIn(350);
+    this.cameras.main.fadeIn(motionDuration(350));
+    announce(`Entered ${this.getRoomName().replace(/^[^A-Za-z]+\s*/, '')}`);
   }
 
   protected installKeyboardControls() {
@@ -208,6 +211,7 @@ export abstract class RoomScene extends Phaser.Scene {
       const select = () => {
         setSelectedBunny(b.id);
         refreshSelectionRings();
+        announce(`Selected ${b.name}`);
         this.scene.get('HUDScene')?.events.emit('bunnySelected', b.id);
       };
       bunny.setDraggable(select, (x, y) => {
@@ -242,7 +246,7 @@ export abstract class RoomScene extends Phaser.Scene {
     const copy = this.add.text(0, 28, 'Waking your bunnies…', { fontFamily: typography.families.display, fontSize: '20px', color: cssPalette.plumDeep }).setOrigin(0.5);
     const spinner = this.add.text(0, 62, '✦', { fontSize: '22px', color: cssPalette.brandPink }).setOrigin(0.5);
     box.add([bg, silhouettes, copy, spinner]);
-    this.tweens.add({ targets: spinner, angle: 360, duration: 1100, repeat: -1, ease: 'Linear' });
+    if (!prefersReducedMotion()) this.tweens.add({ targets: spinner, angle: 360, duration: motionDuration(1100), repeat: -1, ease: 'Linear' });
     this.emptyState = box;
   }
 
@@ -266,7 +270,8 @@ export abstract class RoomScene extends Phaser.Scene {
     const text = this.add.text(0, 0, 'Reconnecting… changes are safe locally', { fontFamily: typography.families.body, fontSize: '13px', color: cssPalette.plumDeep, fontStyle: 'bold' }).setOrigin(0.5);
     toast.add([bg, text]);
     toast.setAlpha(0);
-    this.tweens.add({ targets: toast, alpha: 1, y: 24, duration: 180 });
+    announce('Disconnected — reconnecting');
+    this.tweens.add({ targets: toast, alpha: 1, y: 24, duration: motionDuration(180) });
     this.reconnectToast = toast;
   }
 
@@ -274,7 +279,8 @@ export abstract class RoomScene extends Phaser.Scene {
     if (!this.reconnectToast) return;
     const toast = this.reconnectToast;
     this.reconnectToast = undefined;
-    this.tweens.add({ targets: toast, alpha: 0, y: 12, duration: 180, onComplete: () => toast.destroy() });
+    announce('Reconnected');
+    this.tweens.add({ targets: toast, alpha: 0, y: 12, duration: motionDuration(180), onComplete: () => toast.destroy() });
   }
 
   private showFallbackToast() {
@@ -311,6 +317,15 @@ export abstract class RoomScene extends Phaser.Scene {
       case 'breed': if (!playSample(this, 'breed')) playBreed(); break;
     }
 
+    const verbs: Record<CareAction, string> = {
+      feed: 'fed',
+      clean: 'bathed',
+      play: 'played with',
+      sleep: 'put to sleep',
+      medicine: 'took to the vet',
+      breed: 'bred',
+    };
+
     const serverActionMap: Partial<Record<CareAction, SaveCareAction>> = { feed: 'feed', clean: 'bathe', play: 'play', sleep: 'sleep', medicine: 'vet' };
     const serverAction = serverActionMap[action];
     let usedLocalFallback = false;
@@ -344,6 +359,7 @@ export abstract class RoomScene extends Phaser.Scene {
     if (boostedStat && bunnyObj) {
       const delta = Math.round(b[boostedStat] - beforeStats[boostedStat]);
       if (delta !== 0) bunnyObj.floatStat(delta, STAT_FLOAT_COLORS[boostedStat]);
+      announce(`${verbs[action][0].toUpperCase()}${verbs[action].slice(1)} ${b.name} — ${boostedStat} now ${Math.round(b[boostedStat])}`);
     }
 
     if ((b.id === 'baby' || b.stage === 'baby') && !isServerBackedBunny(b)) {
@@ -358,19 +374,12 @@ export abstract class RoomScene extends Phaser.Scene {
       writeNeedsState(localNeedsState);
     }
 
-    const verbs: Record<CareAction, string> = {
-      feed: 'fed',
-      clean: 'bathed',
-      play: 'played with',
-      sleep: 'put to sleep',
-      medicine: 'took to the vet',
-      breed: 'bred',
-    };
     addActivity(`${playerName} ${verbs[action]} ${b.name} ${emojis[action] || ''}`);
     wsClient.sendAction(action, bunnyId);
   }
 
   protected playRoomActionFlair(action: CareAction, bunnyObj: Bunny) {
+    if (prefersReducedMotion()) return;
     if (action === 'feed') this.spawnFoodArc(bunnyObj);
     if (action === 'clean') this.spawnBubbleBurst(bunnyObj);
     if (action === 'play') this.spawnToyBounce(bunnyObj);
@@ -385,12 +394,12 @@ export abstract class RoomScene extends Phaser.Scene {
       y: bunny.y - 42,
       angle: 340,
       scale: 0.72,
-      duration: 620,
+      duration: motionDuration(620),
       ease: 'Quad.easeOut',
       onComplete: () => {
         const pop = this.add.text(bunny.x + 8, bunny.y - 66, 'pop!', { fontFamily: typography.families.display, fontSize: '18px', color: cssPalette.plumDeep }).setOrigin(0.5).setDepth(29);
         food.destroy();
-        this.tweens.add({ targets: pop, y: pop.y - 20, alpha: 0, duration: 520, ease: 'Cubic.easeOut', onComplete: () => pop.destroy() });
+        this.tweens.add({ targets: pop, y: pop.y - 20, alpha: 0, duration: motionDuration(520), ease: 'Cubic.easeOut', onComplete: () => pop.destroy() });
       },
     });
   }
@@ -399,22 +408,22 @@ export abstract class RoomScene extends Phaser.Scene {
     for (let i = 0; i < 10; i++) {
       const bubble = this.add.circle(bunny.x + Phaser.Math.Between(-36, 36), bunny.y + Phaser.Math.Between(-20, 36), Phaser.Math.Between(4, 10), palette.sky, 0.42).setDepth(27);
       bubble.setStrokeStyle(1, palette.white, 0.7);
-      this.tweens.add({ targets: bubble, x: bubble.x + Phaser.Math.Between(-24, 24), y: bubble.y - Phaser.Math.Between(34, 76), alpha: 0, scale: 1.35, duration: Phaser.Math.Between(700, 1150), ease: 'Sine.easeOut', onComplete: () => bubble.destroy() });
+      this.tweens.add({ targets: bubble, x: bubble.x + Phaser.Math.Between(-24, 24), y: bubble.y - Phaser.Math.Between(34, 76), alpha: 0, scale: 1.35, duration: motionDuration(Phaser.Math.Between(700, 1150)), ease: 'Sine.easeOut', onComplete: () => bubble.destroy() });
     }
   }
 
   private spawnToyBounce(bunny: Bunny) {
     const ball = this.add.circle(bunny.x - 96, bunny.y + 8, 13, palette.butter, 1).setDepth(28);
     ball.setStrokeStyle(4, palette.brandPink, 0.85);
-    this.tweens.add({ targets: ball, x: bunny.x + 64, y: bunny.y - 46, angle: 720, duration: 760, yoyo: true, ease: 'Sine.easeInOut', onComplete: () => ball.destroy() });
+    this.tweens.add({ targets: ball, x: bunny.x + 64, y: bunny.y - 46, angle: 720, duration: motionDuration(760), yoyo: true, ease: 'Sine.easeInOut', onComplete: () => ball.destroy() });
   }
 
   private spawnVetSparkle(bunny: Bunny) {
     const halo = this.add.circle(bunny.x, bunny.y - 42, 42, palette.success, 0.12).setDepth(27);
     halo.setStrokeStyle(3, palette.success, 0.58);
     const heart = this.add.text(bunny.x, bunny.y - 82, '💚', { fontSize: '28px' }).setOrigin(0.5).setDepth(29);
-    this.tweens.add({ targets: halo, scale: 1.35, alpha: 0, duration: 900, ease: 'Cubic.easeOut', onComplete: () => halo.destroy() });
-    this.tweens.add({ targets: heart, y: heart.y - 34, alpha: 0, duration: 900, ease: 'Cubic.easeOut', onComplete: () => heart.destroy() });
+    this.tweens.add({ targets: halo, scale: 1.35, alpha: 0, duration: motionDuration(900), ease: 'Cubic.easeOut', onComplete: () => halo.destroy() });
+    this.tweens.add({ targets: heart, y: heart.y - 34, alpha: 0, duration: motionDuration(900), ease: 'Cubic.easeOut', onComplete: () => heart.destroy() });
   }
 
   doAction(action: string) {
@@ -437,7 +446,7 @@ export abstract class RoomScene extends Phaser.Scene {
 
     const targetRoom = roomMap[action];
     if (targetRoom && targetRoom !== this.scene.key) {
-      this.cameras.main.fadeOut(250);
+      this.cameras.main.fadeOut(motionDuration(250));
       this.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.start(targetRoom);
       });
@@ -446,9 +455,27 @@ export abstract class RoomScene extends Phaser.Scene {
       if (bunnyObj && action !== 'breed') {
         bunnyObj.playActionFeedback(action);
         this.playRoomActionFlair(action, bunnyObj);
-        const duration = action === 'sleep' ? 3000 : action === 'feed' || action === 'play' ? 2000 : 1700;
+        const duration = prefersReducedMotion() ? 300 : action === 'sleep' ? 3000 : action === 'feed' || action === 'play' ? 2000 : 1700;
         this.time.delayedCall(duration, () => bunnyObj.startIdleBounce());
       }
     }
+  }
+
+  public selectNextBunny() {
+    const alive = gameBunnies.filter(b => b.isAlive);
+    if (alive.length === 0) return;
+    const current = alive.findIndex(b => b.id === selectedBunnyId);
+    const next = alive[(current + 1 + alive.length) % alive.length];
+    setSelectedBunny(next.id);
+    this.bunnyObjects.forEach(item => item.setSelected(item.bunnyId === selectedBunnyId));
+    announce(`Selected ${next.name}`);
+  }
+
+  public cycleRoom(dir: number) {
+    const idx = ROOM_SEQUENCE.indexOf(this.scene.key);
+    if (idx < 0) return;
+    const next = ROOM_SEQUENCE[(idx + dir + ROOM_SEQUENCE.length) % ROOM_SEQUENCE.length];
+    this.cameras.main.fadeOut(motionDuration(200));
+    this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start(next));
   }
 }
