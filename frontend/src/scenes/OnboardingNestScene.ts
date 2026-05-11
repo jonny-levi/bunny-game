@@ -23,8 +23,10 @@ export class OnboardingNestScene extends Phaser.Scene {
   private eggBody!: Phaser.GameObjects.Ellipse;
   private cracks: Phaser.GameObjects.Graphics[] = [];
   private tapHint!: Phaser.GameObjects.Text;
-  private progressBar!: Phaser.GameObjects.Rectangle;
-  private progressFill!: Phaser.GameObjects.Rectangle;
+  private heartMeterShell!: Phaser.GameObjects.Container;
+  private heartMeterFill!: Phaser.GameObjects.Rectangle;
+  private heartMeterMask!: Phaser.GameObjects.Graphics;
+  private midHatchHintShown = false;
   private hatching = false;
 
   constructor() { super({ key: 'OnboardingNestScene' }); }
@@ -90,8 +92,8 @@ export class OnboardingNestScene extends Phaser.Scene {
     const motherRef = assetFor(mother) ?? bunnyAssetRef('adult', 1);
     const fatherRef = assetFor(father) ?? bunnyAssetRef('adult', 1);
 
-    this.addAssetImage(motherRef, 180, baseY, 120, 0);
-    this.addAssetImage(fatherRef, GAME_WIDTH - 180, baseY, 130, 600);
+    this.addAssetImage(motherRef, 178, baseY + 2, 120, 0, -8);
+    this.addAssetImage(fatherRef, GAME_WIDTH - 178, baseY + 2, 130, 720, 8);
 
     this.add.text(180, baseY + 80, 'Mother', {
       fontFamily: 'Nunito, Arial, sans-serif', fontSize: '14px',
@@ -103,16 +105,16 @@ export class OnboardingNestScene extends Phaser.Scene {
     }).setOrigin(0.5).setDepth(3);
   }
 
-  private addAssetImage(ref: BunnyAssetRef, x: number, y: number, size: number, bounceDelay: number) {
+  private addAssetImage(ref: BunnyAssetRef, x: number, y: number, size: number, bounceDelay: number, tilt = 0): Phaser.GameObjects.Image | null {
     const create = () => {
-      if (!this.textures.exists(ref.key)) return;
-      const image = this.add.image(x, y, ref.key).setDisplaySize(size, size).setDepth(2);
+      if (!this.textures.exists(ref.key)) return null;
+      const image = this.add.image(x, y, ref.key).setDisplaySize(size, size).setDepth(2).setAngle(tilt);
       this.gentleBounce(image, bounceDelay);
+      return image;
     };
 
     if (this.textures.exists(ref.key)) {
-      create();
-      return;
+      return create();
     }
 
     this.load.svg(ref.key, ref.path, {
@@ -121,6 +123,7 @@ export class OnboardingNestScene extends Phaser.Scene {
     });
     this.load.once(`filecomplete-svg-${ref.key}`, create);
     if (!this.load.isLoading()) this.load.start();
+    return null;
   }
 
   private gentleBounce(target: Phaser.GameObjects.Image, delay: number) {
@@ -195,20 +198,84 @@ export class OnboardingNestScene extends Phaser.Scene {
   }
 
   private drawProgress() {
-    const w = 240;
-    const x = GAME_WIDTH / 2;
-    const y = PLAY_AREA_HEIGHT - 30;
-    this.progressBar = this.add.rectangle(x, y, w, 10, 0x000000, 0.35)
-      .setStrokeStyle(2, 0xffffff, 0.6)
-      .setDepth(5);
-    this.progressFill = this.add.rectangle(x - w / 2 + 1, y, 0, 6, 0xff6b9d).setOrigin(0, 0.5).setDepth(5);
+    const x = GAME_WIDTH / 2 + 72;
+    const y = PLAY_AREA_HEIGHT - 245;
+    const h = 98;
+
+    this.heartMeterShell = this.add.container(x, y).setDepth(6);
+    const shadow = this.add.ellipse(0, h / 2 + 10, 58, 10, 0x8d4a63, 0.18);
+    const stem = this.add.rectangle(0, h / 2, 20, h, 0xffffff, 0.75).setStrokeStyle(2, 0xff8fb3, 0.9);
+    const cap = this.add.text(0, -9, '💗', { fontSize: '28px' }).setOrigin(0.5);
+    const base = this.add.text(0, h + 3, '♡', { fontSize: '24px', color: '#ff6b9d' }).setOrigin(0.5);
+    this.heartMeterFill = this.add.rectangle(0, h, 16, 0, 0xff6b9d, 0.86).setOrigin(0.5, 1);
+
+    this.heartMeterMask = this.make.graphics({ x, y });
+    this.heartMeterMask.fillStyle(0xffffff);
+    this.heartMeterMask.fillRoundedRect(-8, 0, 16, h, 8);
+    this.heartMeterFill.setMask(this.heartMeterMask.createGeometryMask());
+    this.heartMeterMask.visible = false;
+
+    this.heartMeterShell.add([shadow, stem, this.heartMeterFill, cap, base]);
     this.refreshProgress(getIdentities().egg.taps);
   }
 
-  private refreshProgress(taps: number) {
+  private refreshProgress(taps: number, beat = false) {
     const pct = Math.min(1, taps / HATCH_TAPS);
-    const innerWidth = (this.progressBar.width - 2) * pct;
-    this.progressFill.width = innerWidth;
+    this.tweens.add({
+      targets: this.heartMeterFill,
+      displayHeight: 98 * pct,
+      duration: beat ? 180 : 0,
+      ease: 'Back.easeOut',
+    });
+    if (beat) {
+      this.tweens.add({ targets: this.heartMeterShell, scale: 1.08, duration: 90, yoyo: true });
+    }
+  }
+
+  private emitHeartToMeter() {
+    const heart = this.add.text(this.eggContainer.x, this.eggContainer.y - 24, '💖', { fontSize: '18px' })
+      .setOrigin(0.5)
+      .setDepth(8);
+    this.tweens.add({
+      targets: heart,
+      x: this.heartMeterShell.x + Phaser.Math.Between(-4, 4),
+      y: this.heartMeterShell.y + Phaser.Math.Between(4, 20),
+      alpha: 0.1,
+      scale: 0.55,
+      duration: 420,
+      ease: 'Cubic.easeOut',
+      onComplete: () => heart.destroy(),
+    });
+  }
+
+  private pulseEggGlow(taps: number) {
+    const pct = Math.min(1, taps / HATCH_TAPS);
+    const glow = this.add.ellipse(this.eggContainer.x, this.eggContainer.y + 34, 70, 22, 0xfff0dc, 0.42 + pct * 0.25)
+      .setDepth(3);
+    this.tweens.add({
+      targets: glow,
+      scaleX: 1.25 + pct * 1.2,
+      scaleY: 1 + pct * 0.7,
+      alpha: 0,
+      duration: 360,
+      ease: 'Sine.easeOut',
+      onComplete: () => glow.destroy(),
+    });
+  }
+
+  private showMidHatchHint() {
+    if (this.midHatchHintShown) return;
+    this.midHatchHintShown = true;
+    const startX = this.eggContainer.x;
+    const hint = this.add.text(startX, this.eggContainer.y - 78, 'The egg is moving!', {
+      fontFamily: 'Nunito, Arial, sans-serif',
+      fontSize: '18px',
+      color: '#8a2d52',
+      backgroundColor: '#fff5f8',
+      padding: { left: 10, right: 10, top: 5, bottom: 5 },
+    }).setOrigin(0.5).setDepth(8).setAlpha(0);
+    this.tweens.add({ targets: hint, alpha: 1, y: hint.y - 8, duration: 220, yoyo: true, hold: 900, onComplete: () => hint.destroy() });
+    this.tweens.add({ targets: this.eggContainer, x: startX + 3, duration: 40, yoyo: true, repeat: 5, onComplete: () => this.eggContainer.setX(startX) });
   }
 
   private handleTap() {
@@ -218,6 +285,9 @@ export class OnboardingNestScene extends Phaser.Scene {
     const stage = getCrackStage(egg.taps);
 
     playEggTap();
+    this.emitHeartToMeter();
+    this.pulseEggGlow(egg.taps);
+    if (egg.taps % 2 === 0) this.cameras.main.flash(40, 255, 240, 220);
 
     // Tap feedback: shake + small squash
     this.tweens.killTweensOf(this.eggContainer);
@@ -253,7 +323,8 @@ export class OnboardingNestScene extends Phaser.Scene {
       this.refreshCracks(egg.taps, true);
       this.emitCrackParticles();
     }
-    this.refreshProgress(egg.taps);
+    this.refreshProgress(egg.taps, true);
+    if (egg.taps >= HATCH_TAPS * 0.5) this.showMidHatchHint();
     this.tapHint.setText(`Taps: ${egg.taps} / ${HATCH_TAPS}`);
 
     if (shouldHatch()) {
@@ -344,14 +415,9 @@ export class OnboardingNestScene extends Phaser.Scene {
     const cx = this.eggContainer.x;
     const cy = this.eggContainer.y;
 
-    // Flash + shrink the eggshell
-    const flash = this.add.rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0xffffff, 0).setDepth(10);
+    this.playRadialWipe(cx, cy);
     this.cameras.main.flash(220, 255, 245, 210);
     this.cameras.main.shake(160, 0.004);
-    this.tweens.add({
-      targets: flash, alpha: 0.85, duration: 200, yoyo: true,
-      onComplete: () => flash.destroy(),
-    });
     this.tweens.add({
       targets: this.eggContainer, scaleX: 0, scaleY: 0, alpha: 0, duration: 400,
       onComplete: () => this.eggContainer.destroy(),
@@ -360,16 +426,15 @@ export class OnboardingNestScene extends Phaser.Scene {
     const babyRef = assetFor(baby, 'happy') ?? bunnyAssetRef('baby', 1, 'happy');
     const showBaby = () => {
       if (!this.textures.exists(babyRef.key)) return;
-      const babyImg = this.add.image(cx, cy, babyRef.key).setDisplaySize(0, 0).setDepth(6);
+      const babyImg = this.add.image(cx, cy, babyRef.key).setDisplaySize(0, 0).setDepth(7);
       this.tweens.add({
-        targets: babyImg, displayWidth: 110, displayHeight: 110,
+        targets: babyImg, displayWidth: 112, displayHeight: 112,
         duration: 500, ease: 'Back.easeOut', delay: 250,
-        onComplete: () => {
-          this.tweens.add({
-            targets: babyImg, y: babyImg.y - 6, duration: 800, yoyo: true, repeat: 1, ease: 'Sine.easeInOut',
-          });
-        },
+        onComplete: () => this.tweens.add({ targets: babyImg, y: babyImg.y - 6, duration: 800, yoyo: true, repeat: 1, ease: 'Sine.easeInOut' }),
       });
+      this.tweenParentsIntoFamilyPose();
+      this.showBabyNameChip(baby, cy + 78);
+      // TODO(birth-cert): save a renderer snapshot for an in-game birth certificate.
     };
     if (this.textures.exists(babyRef.key)) {
       showBaby();
@@ -380,13 +445,13 @@ export class OnboardingNestScene extends Phaser.Scene {
     }
 
     // Sparkle burst
-    for (let i = 0; i < 12; i++) {
-      const sp = this.add.text(cx, cy, '✨', { fontSize: '18px' }).setDepth(6).setOrigin(0.5);
-      const angle = (i / 12) * Math.PI * 2;
+    for (let i = 0; i < 14; i++) {
+      const sp = this.add.text(cx, cy, i % 2 ? '✨' : '💞', { fontSize: '18px' }).setDepth(8).setOrigin(0.5);
+      const angle = (i / 14) * Math.PI * 2;
       this.tweens.add({
         targets: sp,
-        x: cx + Math.cos(angle) * 90,
-        y: cy + Math.sin(angle) * 90,
+        x: cx + Math.cos(angle) * 95,
+        y: cy + Math.sin(angle) * 95,
         alpha: 0,
         duration: 900,
         delay: 300,
@@ -394,15 +459,55 @@ export class OnboardingNestScene extends Phaser.Scene {
       });
     }
 
-    this.time.delayedCall(2200, () => this.handoffToRooms());
+    this.time.delayedCall(2400, () => this.handoffToRooms());
+  }
+
+  private playRadialWipe(x: number, y: number) {
+    const wipe = this.add.circle(x, y, 8, 0xfff2f7, 0.82).setDepth(9);
+    this.tweens.add({
+      targets: wipe,
+      radius: GAME_WIDTH,
+      alpha: 0,
+      duration: 400,
+      ease: 'Cubic.easeOut',
+      onComplete: () => wipe.destroy(),
+    });
+  }
+
+  private tweenParentsIntoFamilyPose() {
+    const movers = this.children.list.filter((child) =>
+      child instanceof Phaser.GameObjects.Image && child.depth === 2,
+    ) as Phaser.GameObjects.Image[];
+    for (const image of movers) {
+      const targetX = image.x < GAME_WIDTH / 2 ? GAME_WIDTH / 2 - 78 : GAME_WIDTH / 2 + 78;
+      this.tweens.add({ targets: image, x: targetX, y: 246, angle: image.x < GAME_WIDTH / 2 ? -4 : 4, duration: 620, ease: 'Sine.easeInOut' });
+    }
+  }
+
+  private showBabyNameChip(baby: CharacterIdentity, y: number) {
+    const label = this.add.text(GAME_WIDTH / 2, y, `Welcome, Baby #${baby.identityIndex}`, {
+      fontFamily: 'Nunito, Arial, sans-serif',
+      fontSize: '16px',
+      color: '#ffffff',
+      backgroundColor: '#ff6b9d',
+      padding: { left: 14, right: 14, top: 7, bottom: 7 },
+    }).setOrigin(0.5).setDepth(9).setAlpha(0);
+    this.tweens.add({ targets: label, alpha: 1, y: y - 6, duration: 300, delay: 650 });
   }
 
   private handoffToRooms() {
     this.tapHint.setText('Welcome home, little bunny!');
-    this.cameras.main.fadeOut(450, 255, 220, 235);
-    this.cameras.main.once('camerafadeoutcomplete', () => {
-      this.scene.start('LivingRoomScene');
-      this.scene.launch('HUDScene');
+    const curtain = this.add.rectangle(-GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0xff7eaa, 1).setDepth(20);
+    const glint = this.add.rectangle(-GAME_WIDTH + 12, GAME_HEIGHT / 2, 22, GAME_HEIGHT, 0xffb3cc, 0.75).setDepth(21);
+    this.tweens.add({
+      targets: [curtain, glint],
+      x: GAME_WIDTH / 2,
+      duration: 380,
+      ease: 'Sine.easeInOut',
+      onComplete: () => {
+        this.scene.start('LivingRoomScene', { curtainWipe: true });
+        this.scene.launch('HUDScene');
+      },
     });
   }
 }
