@@ -15,6 +15,7 @@ import {
   type CharacterIdentity,
 } from '../state/identityRegistry';
 import { playCrack, playEggTap, playHatch } from '../utils/sound';
+import { playSample } from '../utils/sampleAudio';
 
 const PLAY_AREA_HEIGHT = 480;
 
@@ -418,7 +419,7 @@ export class OnboardingNestScene extends Phaser.Scene {
   private async startHatch() {
     this.hatching = true;
     this.tapHint.setText('💖 The egg is hatching! 💖');
-    playHatch();
+    if (!playSample(this, 'hatch')) playHatch();
     let baby: CharacterIdentity;
     try {
       const { saveClient } = await import('../network/SaveClient');

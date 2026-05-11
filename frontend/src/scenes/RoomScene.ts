@@ -9,6 +9,7 @@ import { applyDecay, catchUpNeeds, legacyStatsFromNeeds, NEEDS_BALANCE, normaliz
 import type { LifeStage } from '../config';
 import { isCareAction, type CareAction } from '../game/actions';
 import { playBreed, playClean, playFeed, playMedicine, playPlay, playSleep } from '../utils/sound';
+import { playSample } from '../utils/sampleAudio';
 import { needColors, palette, typography, cssPalette } from '../ui/tokens';
 
 const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
@@ -302,12 +303,12 @@ export abstract class RoomScene extends Phaser.Scene {
     };
 
     switch (action) {
-      case 'feed': playFeed(); break;
-      case 'clean': playClean(); break;
-      case 'play': playPlay(); break;
-      case 'sleep': playSleep(); break;
-      case 'medicine': playMedicine(); break;
-      case 'breed': playBreed(); break;
+      case 'feed': if (!playSample(this, 'feed')) playFeed(); break;
+      case 'clean': if (!playSample(this, 'clean')) playClean(); break;
+      case 'play': if (!playSample(this, 'play')) playPlay(); break;
+      case 'sleep': if (!playSample(this, 'sleep')) playSleep(); break;
+      case 'medicine': if (!playSample(this, 'medicine')) playMedicine(); break;
+      case 'breed': if (!playSample(this, 'breed')) playBreed(); break;
     }
 
     const serverActionMap: Partial<Record<CareAction, SaveCareAction>> = { feed: 'feed', clean: 'bathe', play: 'play', sleep: 'sleep', medicine: 'vet' };

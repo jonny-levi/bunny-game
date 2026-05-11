@@ -2,6 +2,7 @@ import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { currentIdentityAssets } from '../state/identityRegistry';
 import { preloadIcons } from '../ui/Icon';
+import { preloadSamples } from '../utils/sampleAudio';
 
 const ROOM_TEXTURES = {
   'room-living': '/assets/rooms/living-room.svg',
@@ -18,6 +19,7 @@ export class BootScene extends Phaser.Scene {
 
   preload() {
     preloadIcons(this);
+    preloadSamples(this);
     Object.entries(ROOM_TEXTURES).forEach(([key, path]) => {
       this.load.svg(key, path, { width: GAME_WIDTH, height: 480 });
     });
