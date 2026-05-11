@@ -16,6 +16,7 @@ export class GardenScene extends RoomScene {
     super.create();
     this.bunnyObjects.forEach(b => {
       b.playPlaying();
+      this.playRoomActionFlair('play', b);
       this.time.delayedCall(3000, () => b.startIdleBounce());
     });
   }

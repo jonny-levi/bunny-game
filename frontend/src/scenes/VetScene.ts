@@ -12,4 +12,13 @@ export class VetScene extends RoomScene {
     this.add.image(GAME_WIDTH / 2, H / 2, 'room-vet').setDisplaySize(GAME_WIDTH, H);
   }
 
+
+  create() {
+    super.create();
+    this.bunnyObjects.forEach(b => {
+      b.playMedicine();
+      this.playRoomActionFlair('medicine', b);
+      this.time.delayedCall(2200, () => b.startIdleBounce());
+    });
+  }
 }
