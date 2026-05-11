@@ -3,7 +3,7 @@ import { GAME_WIDTH, COLORS } from '../config';
 import { StatBar } from '../objects/StatBar';
 import { ActionButton } from '../objects/ActionButton';
 import { gameBunnies, selectedBunnyId } from './RoomScene';
-import { toggleMute, isMuted } from '../utils/sound';
+import { cycleVolume, getVolume, getVolumeLabel } from '../utils/sound';
 import { ACTION_COOLDOWNS, CARE_ACTIONS, type CareAction } from '../game/actions';
 import { addIcon, type IconName } from '../ui/Icon';
 import { cssPalette, palette, typography } from '../ui/tokens';
@@ -19,6 +19,7 @@ export class HUDScene extends Phaser.Scene {
   private statBars: { hunger: StatBar; happiness: StatBar; cleanliness: StatBar; energy: StatBar; health: StatBar } | null = null;
   private bunnyNameText!: Phaser.GameObjects.Text;
   private muteBtn!: Phaser.GameObjects.Image;
+  private volumeText!: Phaser.GameObjects.Text;
   private roomLabel!: Phaser.GameObjects.Text;
   private actionButtons = new Map<CareAction, ActionButton>();
   private cooldownUntil = new Map<CareAction, number>();
@@ -134,14 +135,23 @@ export class HUDScene extends Phaser.Scene {
       this.expandedContent.add(btn);
     });
 
-    const initialMuteIcon = addIcon(this, isMuted() ? 'mute' : 'unmute', SIDE_PANEL_WIDTH - 24, PLAY_AREA_HEIGHT - 54, 24)
+    const initialMuteIcon = addIcon(this, getVolume() === 0 ? 'mute' : 'unmute', SIDE_PANEL_WIDTH - 50, PLAY_AREA_HEIGHT - 54, 24)
       .setInteractive({ useHandCursor: true });
     this.muteBtn = initialMuteIcon;
-    this.muteBtn.on('pointerdown', () => {
-      const muted = toggleMute();
-      this.muteBtn.setTexture(muted ? 'ui-icon-mute' : 'ui-icon-unmute');
-    });
-    this.expandedContent.add(this.muteBtn);
+    this.volumeText = this.add.text(SIDE_PANEL_WIDTH - 28, PLAY_AREA_HEIGHT - 54, getVolumeLabel(), {
+      fontFamily: typography.families.body,
+      fontSize: '10px',
+      color: cssPalette.plumDeep,
+      fontStyle: 'bold',
+    }).setOrigin(0, 0.5).setInteractive({ useHandCursor: true });
+    const cycleAudio = () => {
+      const level = cycleVolume();
+      this.muteBtn.setTexture(level === 0 ? 'ui-icon-mute' : 'ui-icon-unmute');
+      this.volumeText.setText(getVolumeLabel());
+    };
+    this.muteBtn.on('pointerdown', cycleAudio);
+    this.volumeText.on('pointerdown', cycleAudio);
+    this.expandedContent.add([this.muteBtn, this.volumeText]);
 
     this.layoutPanel();
   }
