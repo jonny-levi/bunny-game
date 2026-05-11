@@ -90,6 +90,10 @@ export abstract class RoomScene extends Phaser.Scene {
   protected dayNightOverlay!: Phaser.GameObjects.Rectangle;
   protected cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
   protected wasdKeys?: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
+  private emptyState?: Phaser.GameObjects.Container;
+  private reconnectToast?: Phaser.GameObjects.Container;
+  private fallbackToast?: Phaser.GameObjects.Container;
+  private reconnectTimer?: Phaser.Time.TimerEvent;
 
   abstract getRoomName(): string;
   abstract drawRoom(): void;
@@ -118,6 +122,8 @@ export abstract class RoomScene extends Phaser.Scene {
 
     applyLocalNeedsToBaby();
     this.spawnBunnies();
+    this.scheduleEmptyState();
+    this.installConnectionToast();
 
     this.time.addEvent({
       delay: NEEDS_BALANCE.tickMs,
@@ -217,6 +223,70 @@ export abstract class RoomScene extends Phaser.Scene {
     this.bunnyObjects.forEach(item => item.setSelected(item.bunnyId === selectedBunnyId));
   }
 
+  private scheduleEmptyState() {
+    this.time.delayedCall(1000, () => {
+      if (this.bunnyObjects.length === 0) this.showEmptyState();
+    });
+  }
+
+  private showEmptyState() {
+    if (this.emptyState) return;
+    const box = this.add.container(GAME_WIDTH / 2, 238).setDepth(32);
+    const bg = this.add.graphics();
+    bg.fillStyle(palette.cream, 0.92);
+    bg.fillRoundedRect(-180, -82, 360, 164, 22);
+    bg.lineStyle(2, palette.brandPink, 0.22);
+    bg.strokeRoundedRect(-178, -80, 356, 160, 20);
+    const silhouettes = this.add.text(0, -24, '🐇  🐇  🥚', { fontSize: '42px' }).setOrigin(0.5).setAlpha(0.42);
+    const copy = this.add.text(0, 28, 'Waking your bunnies…', { fontFamily: typography.families.display, fontSize: '20px', color: cssPalette.plumDeep }).setOrigin(0.5);
+    const spinner = this.add.text(0, 62, '✦', { fontSize: '22px', color: cssPalette.brandPink }).setOrigin(0.5);
+    box.add([bg, silhouettes, copy, spinner]);
+    this.tweens.add({ targets: spinner, angle: 360, duration: 1100, repeat: -1, ease: 'Linear' });
+    this.emptyState = box;
+  }
+
+  private installConnectionToast() {
+    wsClient.onConnectionChange((connected) => {
+      if (connected) {
+        this.reconnectTimer?.remove(false);
+        this.reconnectTimer = undefined;
+        this.hideReconnectToast();
+        return;
+      }
+      if (this.reconnectToast || this.reconnectTimer) return;
+      this.reconnectTimer = this.time.delayedCall(2000, () => this.showReconnectToast());
+    });
+  }
+
+  private showReconnectToast() {
+    if (this.reconnectToast) return;
+    const toast = this.add.container(GAME_WIDTH / 2, 18).setDepth(80);
+    const bg = this.add.rectangle(0, 0, GAME_WIDTH - 80, 28, palette.butter, 0.92).setStrokeStyle(1, palette.plumDeep, 0.18);
+    const text = this.add.text(0, 0, 'Reconnecting… changes are safe locally', { fontFamily: typography.families.body, fontSize: '13px', color: cssPalette.plumDeep, fontStyle: 'bold' }).setOrigin(0.5);
+    toast.add([bg, text]);
+    toast.setAlpha(0);
+    this.tweens.add({ targets: toast, alpha: 1, y: 24, duration: 180 });
+    this.reconnectToast = toast;
+  }
+
+  private hideReconnectToast() {
+    if (!this.reconnectToast) return;
+    const toast = this.reconnectToast;
+    this.reconnectToast = undefined;
+    this.tweens.add({ targets: toast, alpha: 0, y: 12, duration: 180, onComplete: () => toast.destroy() });
+  }
+
+  private showFallbackToast() {
+    if (this.fallbackToast) this.fallbackToast.destroy();
+    const toast = this.add.container(GAME_WIDTH / 2, PLAY_AREA_HEIGHT - 84).setDepth(82);
+    const bg = this.add.rectangle(0, 0, 330, 34, palette.plumDeep, 0.86);
+    const text = this.add.text(0, 0, 'Saved locally — syncing when connected', { fontFamily: typography.families.body, fontSize: '13px', color: cssPalette.white, fontStyle: 'bold' }).setOrigin(0.5);
+    toast.add([bg, text]);
+    toast.setAlpha(0);
+    this.tweens.add({ targets: toast, alpha: 1, y: toast.y - 8, duration: 180, yoyo: true, hold: 1700, onComplete: () => { toast.destroy(); if (this.fallbackToast === toast) this.fallbackToast = undefined; } });
+    this.fallbackToast = toast;
+  }
+
   protected async applyAction(action: CareAction, bunnyId: string) {
     const b = gameBunnies.find(x => x.id === bunnyId);
     if (!b) return;
@@ -242,8 +312,13 @@ export abstract class RoomScene extends Phaser.Scene {
 
     const serverActionMap: Partial<Record<CareAction, SaveCareAction>> = { feed: 'feed', clean: 'bathe', play: 'play', sleep: 'sleep', medicine: 'vet' };
     const serverAction = serverActionMap[action];
+    let usedLocalFallback = false;
     const serverSave = serverAction
-      ? await saveClient.applyAction(serverAction).catch((err: unknown) => { console.warn('Server action failed, using local fallback', err); return null; })
+      ? await saveClient.applyAction(serverAction).catch((err: unknown) => {
+        console.warn('Server action failed, using local fallback', err);
+        usedLocalFallback = true;
+        return null;
+      })
       : null;
 
     if (serverSave) {
@@ -253,6 +328,7 @@ export abstract class RoomScene extends Phaser.Scene {
       b.energy = serverSave.needs.energy;
       b.health = serverSave.needs.health;
     } else {
+      if (usedLocalFallback) this.showFallbackToast();
       switch (action) {
         case 'feed': b.hunger = Math.min(100, b.hunger + 25); break;
         case 'clean': b.cleanliness = Math.min(100, b.cleanliness + 30); break;

@@ -38,12 +38,14 @@ export interface GameEvent {
 
 type StateCallback = (state: GameState) => void;
 type EventCallback = (event: GameEvent) => void;
+type ConnectionCallback = (connected: boolean) => void;
 
 export class WebSocketClient {
   private ws: WebSocket | null = null;
   private reconnectTimer: number | null = null;
   private stateCallbacks: StateCallback[] = [];
   private eventCallbacks: EventCallback[] = [];
+  private connectionCallbacks: ConnectionCallback[] = [];
   private playerName: string = '';
   private familyId: string = '';
   private playerId: string = '';
@@ -85,6 +87,7 @@ export class WebSocketClient {
       this.ws = new WebSocket(`${WS_URL}?${params}`);
       this.ws.onopen = () => {
         this.connected = true;
+        this.notifyConnection();
         console.log('WebSocket connected');
         if (this.reconnectTimer) {
           clearTimeout(this.reconnectTimer);
@@ -107,10 +110,12 @@ export class WebSocketClient {
       };
       this.ws.onclose = () => {
         this.connected = false;
+        this.notifyConnection();
         this.scheduleReconnect();
       };
       this.ws.onerror = () => {
         this.connected = false;
+        this.notifyConnection();
       };
     } catch {
       this.scheduleReconnect();
@@ -138,6 +143,14 @@ export class WebSocketClient {
 
   onState(cb: StateCallback) { this.stateCallbacks.push(cb); }
   onEvent(cb: EventCallback) { this.eventCallbacks.push(cb); }
+  onConnectionChange(cb: ConnectionCallback) {
+    this.connectionCallbacks.push(cb);
+    cb(this.connected);
+  }
+
+  private notifyConnection() {
+    this.connectionCallbacks.forEach(cb => cb(this.connected));
+  }
 
   isConnected() { return this.connected; }
 
