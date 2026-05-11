@@ -8,6 +8,7 @@ import { ACTION_COOLDOWNS, CARE_ACTIONS, type CareAction } from '../game/actions
 import { addIcon, type IconName } from '../ui/Icon';
 import { cssPalette, palette, typography } from '../ui/tokens';
 import { announce, motionDuration } from '../utils/accessibility';
+import { getLayout } from '../ui/layout';
 
 const HUD_PREF_KEY = 'bunny:hud-expanded';
 const SIDE_PANEL_WIDTH = 184;
@@ -36,6 +37,9 @@ export class HUDScene extends Phaser.Scene {
   private helpPanel?: Phaser.GameObjects.Container;
   private focusOutline?: Phaser.GameObjects.Rectangle;
   private focusedButton = 0;
+  private dock!: Phaser.GameObjects.Container;
+  private dockBg!: Phaser.GameObjects.Graphics;
+  private dockItems: Array<{ hit: Phaser.GameObjects.Rectangle; icon: Phaser.GameObjects.Image; text: Phaser.GameObjects.Text; dot: Phaser.GameObjects.Text; index: number }> = [];
 
   constructor() { super({ key: 'HUDScene' }); }
 
@@ -48,7 +52,7 @@ export class HUDScene extends Phaser.Scene {
     this.createRoomLabel();
     this.installKeyboardShortcuts();
 
-    this.scale.on('resize', () => this.layoutPanel());
+    this.scale.on('resize', () => { this.layoutPanel(); this.layoutDock(); this.layoutRoomLabel(); });
 
     this.time.addEvent({
       delay: 400,
@@ -164,10 +168,11 @@ export class HUDScene extends Phaser.Scene {
 
   private layoutPanel() {
     this.isMobile = this.scale.width < MOBILE_BREAKPOINT;
+    const layout = getLayout(this);
     const width = this.hudExpanded ? SIDE_PANEL_WIDTH : COMPACT_PANEL_WIDTH;
-    const height = this.hudExpanded ? PLAY_AREA_HEIGHT - 24 : 116;
-    const x = GAME_WIDTH - width - SIDE_PANEL_MARGIN;
-    const y = this.isMobile && !this.hudExpanded ? SIDE_PANEL_MARGIN + 38 : SIDE_PANEL_MARGIN;
+    const height = this.hudExpanded ? Math.min(PLAY_AREA_HEIGHT - 24, layout.hudMaxHeight) : 116;
+    const x = layout.hudX - width;
+    const y = this.isMobile && !this.hudExpanded ? layout.hudY + 38 : layout.hudY;
 
     this.panel.setPosition(x, y);
     this.drawPanelBg(width, height);
@@ -193,17 +198,9 @@ export class HUDScene extends Phaser.Scene {
 
   private createNavigation() {
     const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
-    const dock = this.add.container(GAME_WIDTH / 2, PLAY_AREA_HEIGHT - 28).setDepth(45);
-    const shadow = this.add.graphics();
-    shadow.fillStyle(palette.plumDeep, 0.16);
-    shadow.fillRoundedRect(-191, -21, 382, 54, 18);
-    dock.add(shadow);
-    const bg = this.add.graphics();
-    bg.fillStyle(palette.cream, 0.92);
-    bg.fillRoundedRect(-191, -27, 382, 54, 18);
-    bg.lineStyle(1, palette.white, 0.7);
-    bg.strokeRoundedRect(-190, -26, 380, 52, 17);
-    dock.add(bg);
+    this.dock = this.add.container(0, 0).setDepth(45);
+    this.dockBg = this.add.graphics();
+    this.dock.add(this.dockBg);
 
     const icons: Array<{ room: string; icon: IconName; label: string; need?: string }> = [
       { room: 'LivingRoomScene', icon: 'play', label: 'Home', need: 'happiness' },
@@ -238,7 +235,32 @@ export class HUDScene extends Phaser.Scene {
       hit.on('pointerover', () => icon.setScale(1.14));
       hit.on('pointerout', () => icon.setScale(1));
       hit.on('pointerdown', () => this.startRoom(item.room, rooms));
-      dock.add([hit, icon, text, dot]);
+      this.dock.add([hit, icon, text, dot]);
+      this.dockItems.push({ hit, icon, text, dot, index });
+    });
+    this.layoutDock();
+  }
+
+  private layoutDock() {
+    if (!this.dock || !this.dockBg) return;
+    const layout = getLayout(this);
+    const spacing = layout.orientation === 'portrait' ? Math.min(60, (layout.width - layout.safeLeft - layout.safeRight - 32) / 7) : 55;
+    const width = spacing * 7 + 10;
+    this.dock.setPosition(layout.width / 2, layout.dockY);
+    this.dockBg.clear();
+    this.dockBg.fillStyle(palette.plumDeep, 0.16);
+    this.dockBg.fillRoundedRect(-width / 2, -27, width, 62, 20);
+    this.dockBg.fillStyle(palette.cream, 0.92);
+    this.dockBg.fillRoundedRect(-width / 2, -32, width, 62, 20);
+    this.dockBg.lineStyle(1, palette.white, 0.7);
+    this.dockBg.strokeRoundedRect(-width / 2 + 1, -31, width - 2, 60, 19);
+    this.dockItems.forEach(({ hit, icon, text, dot, index }) => {
+      const x = -spacing * 3 + index * spacing;
+      hit.setPosition(x, -2).setSize(layout.dockIconSize, layout.dockIconSize);
+      hit.input!.hitArea = new Phaser.Geom.Rectangle(-layout.dockIconSize / 2, -layout.dockIconSize / 2, layout.dockIconSize, layout.dockIconSize);
+      icon.setPosition(x, -8).setDisplaySize(26, 26);
+      text.setPosition(x, 18);
+      dot.setPosition(x + 15, -25);
     });
   }
 
@@ -251,6 +273,13 @@ export class HUDScene extends Phaser.Scene {
       strokeThickness: 3,
       fontStyle: 'bold',
     }).setOrigin(0.5).setDepth(40);
+    this.layoutRoomLabel();
+  }
+
+  private layoutRoomLabel() {
+    if (!this.roomLabel) return;
+    const layout = getLayout(this);
+    this.roomLabel.setPosition(layout.width / 2, layout.safeTop + 12);
   }
 
   private updateHUD() {

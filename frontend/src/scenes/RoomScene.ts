@@ -12,9 +12,12 @@ import { playBreed, playClean, playFeed, playMedicine, playPlay, playSleep } fro
 import { playSample } from '../utils/sampleAudio';
 import { needColors, palette, typography, cssPalette } from '../ui/tokens';
 import { announce, motionDuration, prefersReducedMotion } from '../utils/accessibility';
+import { getLayout, type LayoutContext } from '../ui/layout';
 
-const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
-const MOVE_BOUNDS = { minX: 60, maxX: GAME_WIDTH - 60, minY: 120, maxY: PLAY_AREA_HEIGHT - 60 };
+const PLAY_AREA_HEIGHT = 480; // Design baseline; runtime layout may resize it.
+function moveBounds(layout: LayoutContext) {
+  return { minX: 60, maxX: layout.width - 60, minY: Math.max(100, layout.playTop + 70), maxY: layout.playBottom - 60 };
+}
 const ARROW_STEP = 14;
 const ROOM_SEQUENCE = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
 
@@ -113,13 +116,14 @@ export abstract class RoomScene extends Phaser.Scene {
 
     // Day/night overlay (only over play area)
     const tint = getDayNightTint();
-    this.dayNightOverlay = this.add.rectangle(GAME_WIDTH / 2, PLAY_AREA_HEIGHT / 2, GAME_WIDTH, PLAY_AREA_HEIGHT, tint.color, tint.alpha);
+    const layout = getLayout(this);
+    this.dayNightOverlay = this.add.rectangle(layout.width / 2, layout.playBottom / 2, layout.width, layout.playBottom, tint.color, tint.alpha);
     this.dayNightOverlay.setDepth(5);
 
     // Season indicator
     const season = getSeason();
     const seasonEmojis: Record<string, string> = { spring: '🌸', summer: '☀️', autumn: '🍂', winter: '❄️' };
-    this.add.text(GAME_WIDTH - 40, 8, seasonEmojis[season] || '', {
+    this.add.text(layout.width - 40, layout.safeTop + 8, seasonEmojis[season] || '', {
       fontSize: '20px',
     }).setDepth(6);
 
@@ -180,8 +184,9 @@ export abstract class RoomScene extends Phaser.Scene {
     if (c?.down?.isDown || w?.S?.isDown) dy += ARROW_STEP;
     if (dx === 0 && dy === 0) return;
     target.moveBy(dx, dy);
-    target.x = Phaser.Math.Clamp(target.x, MOVE_BOUNDS.minX, MOVE_BOUNDS.maxX);
-    target.y = Phaser.Math.Clamp(target.y, MOVE_BOUNDS.minY, MOVE_BOUNDS.maxY);
+    const bounds = moveBounds(getLayout(this));
+    target.x = Phaser.Math.Clamp(target.x, bounds.minX, bounds.maxX);
+    target.y = Phaser.Math.Clamp(target.y, bounds.minY, bounds.maxY);
   }
 
   protected spawnBunnies() {
@@ -189,8 +194,9 @@ export abstract class RoomScene extends Phaser.Scene {
     this.bunnyObjects = [];
 
     const alive = gameBunnies.filter(b => b.isAlive);
-    const groundY = PLAY_AREA_HEIGHT - 80;
-    const spacing = (GAME_WIDTH - 100) / (alive.length + 1);
+    const layout = getLayout(this);
+    const groundY = layout.playBottom - 80;
+    const spacing = (layout.width - 100) / (alive.length + 1);
 
     const identities = getIdentities();
     const identityById: Record<string, CharacterIdentity | null> = {
@@ -215,8 +221,9 @@ export abstract class RoomScene extends Phaser.Scene {
         this.scene.get('HUDScene')?.events.emit('bunnySelected', b.id);
       };
       bunny.setDraggable(select, (x, y) => {
-        bunny.x = Phaser.Math.Clamp(x, MOVE_BOUNDS.minX, MOVE_BOUNDS.maxX);
-        bunny.y = Phaser.Math.Clamp(y, MOVE_BOUNDS.minY, MOVE_BOUNDS.maxY);
+        const bounds = moveBounds(getLayout(this));
+        bunny.x = Phaser.Math.Clamp(x, bounds.minX, bounds.maxX);
+        bunny.y = Phaser.Math.Clamp(y, bounds.minY, bounds.maxY);
       });
       this.bunnyObjects.push(bunny);
     });
@@ -236,7 +243,8 @@ export abstract class RoomScene extends Phaser.Scene {
 
   private showEmptyState() {
     if (this.emptyState) return;
-    const box = this.add.container(GAME_WIDTH / 2, 238).setDepth(32);
+    const layout = getLayout(this);
+    const box = this.add.container(layout.width / 2, Math.min(238, layout.playBottom / 2)).setDepth(32);
     const bg = this.add.graphics();
     bg.fillStyle(palette.cream, 0.92);
     bg.fillRoundedRect(-180, -82, 360, 164, 22);
@@ -265,8 +273,9 @@ export abstract class RoomScene extends Phaser.Scene {
 
   private showReconnectToast() {
     if (this.reconnectToast) return;
-    const toast = this.add.container(GAME_WIDTH / 2, 18).setDepth(80);
-    const bg = this.add.rectangle(0, 0, GAME_WIDTH - 80, 28, palette.butter, 0.92).setStrokeStyle(1, palette.plumDeep, 0.18);
+    const layout = getLayout(this);
+    const toast = this.add.container(layout.width / 2, layout.safeTop + 18).setDepth(80);
+    const bg = this.add.rectangle(0, 0, layout.width - 80, 28, palette.butter, 0.92).setStrokeStyle(1, palette.plumDeep, 0.18);
     const text = this.add.text(0, 0, 'Reconnecting… changes are safe locally', { fontFamily: typography.families.body, fontSize: '13px', color: cssPalette.plumDeep, fontStyle: 'bold' }).setOrigin(0.5);
     toast.add([bg, text]);
     toast.setAlpha(0);
@@ -285,7 +294,8 @@ export abstract class RoomScene extends Phaser.Scene {
 
   private showFallbackToast() {
     if (this.fallbackToast) this.fallbackToast.destroy();
-    const toast = this.add.container(GAME_WIDTH / 2, PLAY_AREA_HEIGHT - 84).setDepth(82);
+    const layout = getLayout(this);
+    const toast = this.add.container(layout.width / 2, layout.playBottom - 84).setDepth(82);
     const bg = this.add.rectangle(0, 0, 330, 34, palette.plumDeep, 0.86);
     const text = this.add.text(0, 0, 'Saved locally — syncing when connected', { fontFamily: typography.families.body, fontSize: '13px', color: cssPalette.white, fontStyle: 'bold' }).setOrigin(0.5);
     toast.add([bg, text]);

@@ -600,8 +600,9 @@ export class Bunny extends Phaser.GameObjects.Container {
   setDraggable(onSelect: () => void, onMove?: (x: number, y: number) => void) {
     const s = this.getStageScale();
     // Container-level hit area covers head + body so the whole bunny is grabbable.
-    const hitW = 80 * s;
-    const hitH = 130 * s;
+    const mobile = this.scene.scale.width < 700;
+    const hitW = Math.max(mobile ? 100 : 80, 80 * s);
+    const hitH = Math.max(mobile ? 150 : 130, 130 * s);
     this.setSize(hitW, hitH);
     this.setInteractive(new Phaser.Geom.Rectangle(-hitW / 2, -65 * s, hitW, hitH), Phaser.Geom.Rectangle.Contains);
     (this.scene.input as Phaser.Input.InputPlugin).setDraggable(this);

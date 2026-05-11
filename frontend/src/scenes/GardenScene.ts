@@ -1,16 +1,17 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH } from '../config';
+import { getLayout } from '../ui/layout';
 import { RoomScene } from './RoomScene';
 import { prefersReducedMotion } from '../utils/accessibility';
 
-const H = 480;
 
 export class GardenScene extends RoomScene {
   constructor() { super({ key: 'GardenScene' }); }
   getRoomName() { return '🌿 Garden'; }
 
   drawRoom() {
-    this.add.image(GAME_WIDTH / 2, H / 2, 'room-garden').setDisplaySize(GAME_WIDTH, H);
+    const layout = getLayout(this);
+    const H = layout.playBottom;
+    this.add.image(layout.width / 2, H / 2, 'room-garden').setDisplaySize(layout.width, H);
   }
 
   create() {
