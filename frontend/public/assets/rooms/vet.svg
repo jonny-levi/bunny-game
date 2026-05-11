@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480">
+<defs>
+  <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#E8F5E9"/><stop offset="1" stop-color="#D8F0E0"/></linearGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#F5F5F5"/><stop offset="1" stop-color="#E0E0E0"/></linearGradient>
+  <filter id="soft"><feGaussianBlur stdDeviation="5"/></filter>
+</defs>
+
+<rect width="800" height="400" fill="url(#wall)"/><rect y="400" width="800" height="80" fill="url(#floor)"/><g opacity=".5"><path d="M0 400v80" stroke="#E0E0E0"/><path d="M42 400v80" stroke="#E0E0E0"/><path d="M84 400v80" stroke="#E0E0E0"/><path d="M126 400v80" stroke="#E0E0E0"/><path d="M168 400v80" stroke="#E0E0E0"/><path d="M210 400v80" stroke="#E0E0E0"/><path d="M252 400v80" stroke="#E0E0E0"/><path d="M294 400v80" stroke="#E0E0E0"/><path d="M336 400v80" stroke="#E0E0E0"/><path d="M378 400v80" stroke="#E0E0E0"/><path d="M420 400v80" stroke="#E0E0E0"/><path d="M462 400v80" stroke="#E0E0E0"/><path d="M504 400v80" stroke="#E0E0E0"/><path d="M546 400v80" stroke="#E0E0E0"/><path d="M588 400v80" stroke="#E0E0E0"/><path d="M630 400v80" stroke="#E0E0E0"/><path d="M672 400v80" stroke="#E0E0E0"/><path d="M714 400v80" stroke="#E0E0E0"/><path d="M756 400v80" stroke="#E0E0E0"/><path d="M798 400v80" stroke="#E0E0E0"/></g>
+<rect x="300" y="306" width="200" height="22" rx="9" fill="#B0BEC5" stroke="#90A4AE" stroke-width="4"/><path d="M320 328v58M480 328v58" stroke="#90A4AE" stroke-width="8"/>
+<circle cx="130" cy="112" r="42" fill="#EF5350" opacity=".14"/><rect x="121" y="80" width="18" height="64" rx="5" fill="#EF5350"/><rect x="98" y="103" width="64" height="18" rx="5" fill="#EF5350"/>
+<rect x="548" y="72" width="120" height="148" rx="12" fill="#fff" stroke="#BDBDBD" stroke-width="4"/><path d="M608 72v148M548 132h120" stroke="#E0E0E0"/><g><rect x="570" y="92" width="18" height="32" rx="4" fill="#42A5F5"/><rect x="598" y="98" width="18" height="26" rx="4" fill="#66BB6A"/><rect x="626" y="94" width="18" height="30" rx="4" fill="#EF5350"/><rect x="578" y="158" width="22" height="28" rx="4" fill="#FFD54F"/><rect x="616" y="158" width="20" height="28" rx="4" fill="#CE93D8"/></g>
+<rect x="312" y="72" width="82" height="62" rx="6" fill="#FFFFF0" stroke="#FFD54F" stroke-width="5"/><text x="353" y="101" text-anchor="middle" font-family="Nunito" font-size="14" fill="#333">Dr. Hop</text><path d="M246 118h56v38h-56z" fill="#263238" stroke="#37474F" stroke-width="3"/><path d="M256 138h10l6-13 10 26 8-13h8" stroke="#51CF66" stroke-width="4" fill="none"/>
+
+</svg>

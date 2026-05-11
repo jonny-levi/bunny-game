@@ -3,11 +3,24 @@ import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { currentIdentityAssets } from '../state/identityRegistry';
 import { preloadIcons } from '../ui/Icon';
 
+const ROOM_TEXTURES = {
+  'room-living': '/assets/rooms/living-room.svg',
+  'room-kitchen': '/assets/rooms/kitchen.svg',
+  'room-bathroom': '/assets/rooms/bathroom.svg',
+  'room-garden': '/assets/rooms/garden.svg',
+  'room-bedroom': '/assets/rooms/bedroom.svg',
+  'room-vet': '/assets/rooms/vet.svg',
+  'room-nest': '/assets/rooms/nest.svg',
+} as const;
+
 export class BootScene extends Phaser.Scene {
   constructor() { super({ key: 'BootScene' }); }
 
   preload() {
     preloadIcons(this);
+    Object.entries(ROOM_TEXTURES).forEach(([key, path]) => {
+      this.load.svg(key, path, { width: GAME_WIDTH, height: 480 });
+    });
     // Preload only the persisted selected identities plus index-1 fallbacks.
     // The full 400-SVG library lives in /assets and is lazy-loaded by scenes
     // when a new identity/state becomes visible.
