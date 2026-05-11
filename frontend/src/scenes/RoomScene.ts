@@ -74,6 +74,12 @@ export abstract class RoomScene extends Phaser.Scene {
   abstract drawRoom(): void;
 
   create() {
+    // Issue #42: every room must guarantee the HUD is up so a returning player
+    // never lands on a background-only scene without navigation/actions.
+    if (!this.scene.isActive('HUDScene')) {
+      this.scene.launch('HUDScene');
+    }
+
     ensureDemoBunnies();
     this.drawRoom();
 
