@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">Bunny Family sunset nest</title>
+  <desc id="desc">A warm sunset scene with two parent bunnies watching over a nest and egg.</desc>
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd0b8"/>
+      <stop offset="0.5" stop-color="#ffe7c7"/>
+      <stop offset="1" stop-color="#f9b4c8"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="50%" cy="45%" r="55%">
+      <stop offset="0" stop-color="#fff3a6" stop-opacity=".95"/>
+      <stop offset="1" stop-color="#ff9fb8" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#7b315f" flood-opacity=".22"/>
+    </filter>
+  </defs>
+  <rect width="640" height="360" rx="34" fill="url(#sky)"/>
+  <circle cx="320" cy="130" r="150" fill="url(#sun)"/>
+  <path d="M0 260c80-30 142-25 214 0s142 28 232-2 145-21 194 6v96H0z" fill="#be78a4" opacity=".24"/>
+  <path d="M0 293c92-44 182-18 266-5 98 15 188-31 374 7v65H0z" fill="#7bc9a9" opacity=".45"/>
+  <g opacity=".7" fill="#fff9ef">
+    <ellipse cx="114" cy="83" rx="45" ry="15"/>
+    <ellipse cx="154" cy="79" rx="32" ry="12"/>
+    <ellipse cx="500" cy="86" rx="54" ry="16"/>
+    <ellipse cx="545" cy="82" rx="30" ry="11"/>
+  </g>
+  <g filter="url(#soft)">
+    <g transform="translate(172 144)">
+      <ellipse cx="0" cy="86" rx="46" ry="62" fill="#87c9f5"/>
+      <ellipse cx="0" cy="35" rx="38" ry="34" fill="#87c9f5"/>
+      <ellipse cx="-19" cy="-2" rx="13" ry="45" fill="#87c9f5" transform="rotate(-12 -19 -2)"/>
+      <ellipse cx="17" cy="-6" rx="13" ry="48" fill="#87c9f5" transform="rotate(9 17 -6)"/>
+      <ellipse cx="-19" cy="1" rx="6" ry="30" fill="#ffd4df" transform="rotate(-12 -19 1)"/>
+      <ellipse cx="17" cy="-3" rx="6" ry="31" fill="#ffd4df" transform="rotate(9 17 -3)"/>
+      <circle cx="-13" cy="31" r="4" fill="#452b49"/><circle cx="13" cy="31" r="4" fill="#452b49"/>
+      <path d="M-5 42q5 6 10 0" stroke="#452b49" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <ellipse cx="-24" cy="46" rx="9" ry="5" fill="#ff9fbd" opacity=".55"/><ellipse cx="24" cy="46" rx="9" ry="5" fill="#ff9fbd" opacity=".55"/>
+    </g>
+    <g transform="translate(468 148)">
+      <ellipse cx="0" cy="83" rx="46" ry="60" fill="#d59bed"/>
+      <ellipse cx="0" cy="34" rx="38" ry="34" fill="#d59bed"/>
+      <ellipse cx="-17" cy="-6" rx="13" ry="47" fill="#d59bed" transform="rotate(-7 -17 -6)"/>
+      <ellipse cx="19" cy="-3" rx="13" ry="45" fill="#d59bed" transform="rotate(13 19 -3)"/>
+      <ellipse cx="-17" cy="-3" rx="6" ry="30" fill="#ffd4df" transform="rotate(-7 -17 -3)"/>
+      <ellipse cx="19" cy="0" rx="6" ry="29" fill="#ffd4df" transform="rotate(13 19 0)"/>
+      <circle cx="-13" cy="31" r="4" fill="#452b49"/><circle cx="13" cy="31" r="4" fill="#452b49"/>
+      <path d="M-6 43q6 7 12 0" stroke="#452b49" stroke-width="3" fill="none" stroke-linecap="round"/>
+      <ellipse cx="-24" cy="46" rx="9" ry="5" fill="#ff9fbd" opacity=".55"/><ellipse cx="24" cy="46" rx="9" ry="5" fill="#ff9fbd" opacity=".55"/>
+    </g>
+    <g transform="translate(320 234)">
+      <ellipse cx="0" cy="52" rx="112" ry="34" fill="#8c5a39" opacity=".35"/>
+      <path d="M-118 42c52-54 184-57 236 0-31 42-204 42-236 0z" fill="#b97942"/>
+      <path d="M-98 37c52 24 143 24 196 0" stroke="#6f442b" stroke-width="10" fill="none" stroke-linecap="round"/>
+      <g stroke="#7c4b2e" stroke-width="6" stroke-linecap="round" opacity=".75">
+        <path d="M-100 26l45 38M-64 12l38 58M-20 5l12 68M28 8L5 72M70 15L33 69M103 31L56 66"/>
+      </g>
+      <ellipse cx="0" cy="12" rx="43" ry="58" fill="#fff6df" stroke="#f2b98b" stroke-width="5"/>
+      <path d="M-12 -14c17 8 24 20 8 36 18-4 30 6 28 23" stroke="#ffd06f" stroke-width="5" fill="none" stroke-linecap="round"/>
+    </g>
+  </g>
+  <g fill="#fff7d6" opacity=".9">
+    <circle cx="92" cy="202" r="3"/><circle cx="552" cy="190" r="3"/><circle cx="422" cy="58" r="2.5"/><circle cx="226" cy="74" r="2.5"/>
+  </g>
+</svg>
