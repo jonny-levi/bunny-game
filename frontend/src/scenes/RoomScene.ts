@@ -11,6 +11,8 @@ import { isCareAction, type CareAction } from '../game/actions';
 import { playBreed, playClean, playFeed, playMedicine, playPlay, playSleep } from '../utils/sound';
 
 const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
+const MOVE_BOUNDS = { minX: 60, maxX: GAME_WIDTH - 60, minY: 120, maxY: PLAY_AREA_HEIGHT - 60 };
+const ARROW_STEP = 14;
 
 // Shared state
 export let gameBunnies: BunnyState[] = [];
@@ -69,6 +71,8 @@ wsClient.onEvent((event) => {
 export abstract class RoomScene extends Phaser.Scene {
   protected bunnyObjects: Bunny[] = [];
   protected dayNightOverlay!: Phaser.GameObjects.Rectangle;
+  protected cursors?: Phaser.Types.Input.Keyboard.CursorKeys;
+  protected wasdKeys?: Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
 
   abstract getRoomName(): string;
   abstract drawRoom(): void;
@@ -114,7 +118,37 @@ export abstract class RoomScene extends Phaser.Scene {
       },
     });
 
+    this.installKeyboardControls();
     this.cameras.main.fadeIn(350);
+  }
+
+  protected installKeyboardControls() {
+    const kb = this.input.keyboard;
+    if (!kb) return;
+    this.cursors = kb.createCursorKeys();
+    this.wasdKeys = kb.addKeys({
+      W: Phaser.Input.Keyboard.KeyCodes.W,
+      A: Phaser.Input.Keyboard.KeyCodes.A,
+      S: Phaser.Input.Keyboard.KeyCodes.S,
+      D: Phaser.Input.Keyboard.KeyCodes.D,
+    }) as Record<'W' | 'A' | 'S' | 'D', Phaser.Input.Keyboard.Key>;
+  }
+
+  update() {
+    const target = this.bunnyObjects.find(b => b.bunnyId === selectedBunnyId) || this.bunnyObjects[0];
+    if (!target) return;
+    let dx = 0;
+    let dy = 0;
+    const c = this.cursors;
+    const w = this.wasdKeys;
+    if (c?.left?.isDown || w?.A?.isDown) dx -= ARROW_STEP;
+    if (c?.right?.isDown || w?.D?.isDown) dx += ARROW_STEP;
+    if (c?.up?.isDown || w?.W?.isDown) dy -= ARROW_STEP;
+    if (c?.down?.isDown || w?.S?.isDown) dy += ARROW_STEP;
+    if (dx === 0 && dy === 0) return;
+    target.moveBy(dx, dy);
+    target.x = Phaser.Math.Clamp(target.x, MOVE_BOUNDS.minX, MOVE_BOUNDS.maxX);
+    target.y = Phaser.Math.Clamp(target.y, MOVE_BOUNDS.minY, MOVE_BOUNDS.maxY);
   }
 
   protected spawnBunnies() {
@@ -138,12 +172,21 @@ export abstract class RoomScene extends Phaser.Scene {
       const bx = 50 + spacing * (i + 1);
       const bunny = new Bunny(this, bx, groundY, b.id, b.name, b.color, b.stage as LifeStage, identityById[b.id] ?? null);
       bunny.setDepth(3);
-      bunny.setInteractable(() => {
+      const select = () => {
         setSelectedBunny(b.id);
         this.scene.get('HUDScene')?.events.emit('bunnySelected', b.id);
+      };
+      bunny.setDraggable(select, (x, y) => {
+        bunny.x = Phaser.Math.Clamp(x, MOVE_BOUNDS.minX, MOVE_BOUNDS.maxX);
+        bunny.y = Phaser.Math.Clamp(y, MOVE_BOUNDS.minY, MOVE_BOUNDS.maxY);
       });
       this.bunnyObjects.push(bunny);
     });
+
+    // Auto-select first bunny so arrow keys work immediately.
+    if (!selectedBunnyId && alive.length > 0) {
+      setSelectedBunny(alive[0].id);
+    }
   }
 
   protected async applyAction(action: CareAction, bunnyId: string) {

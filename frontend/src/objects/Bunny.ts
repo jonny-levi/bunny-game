@@ -401,6 +401,41 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.head.on('pointerdown', onClick);
   }
 
+  /**
+   * Enable mouse/pointer drag movement. `onMove` fires after each drag step
+   * so the scene can re-clamp position and notify selection state.
+   */
+  setDraggable(onSelect: () => void, onMove?: (x: number, y: number) => void) {
+    const s = this.getStageScale();
+    // Container-level hit area covers head + body so the whole bunny is grabbable.
+    const hitW = 80 * s;
+    const hitH = 130 * s;
+    this.setSize(hitW, hitH);
+    this.setInteractive(new Phaser.Geom.Rectangle(-hitW / 2, -65 * s, hitW, hitH), Phaser.Geom.Rectangle.Contains);
+    (this.scene.input as Phaser.Input.InputPlugin).setDraggable(this);
+
+    this.on('pointerdown', () => onSelect());
+    this.on('dragstart', () => {
+      onSelect();
+      this.stopAnim();
+      this.setScale(1.05);
+    });
+    this.on('drag', (_pointer: Phaser.Input.Pointer, dragX: number, dragY: number) => {
+      this.x = dragX;
+      this.y = dragY;
+      onMove?.(dragX, dragY);
+    });
+    this.on('dragend', () => {
+      this.setScale(1);
+      this.startIdleBounce();
+    });
+  }
+
+  moveBy(dx: number, dy: number) {
+    this.x += dx;
+    this.y += dy;
+  }
+
   destroy(fromScene?: boolean) {
     this.stopAnim();
     super.destroy(fromScene);
