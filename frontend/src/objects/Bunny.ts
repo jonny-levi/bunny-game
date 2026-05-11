@@ -1,5 +1,6 @@
 import Phaser from 'phaser';
 import { BUNNY_COLORS, type LifeStage } from '../config';
+import { cssPalette, palette, typography } from '../ui/tokens';
 import { assetFor, bunnyAssetRef, type BunnyAssetRef, type CharacterIdentity, type CharacterState } from '../state/identityRegistry';
 
 export class Bunny extends Phaser.GameObjects.Container {
@@ -11,6 +12,12 @@ export class Bunny extends Phaser.GameObjects.Container {
   private rightEye: Phaser.GameObjects.Ellipse;
   private mouth: Phaser.GameObjects.Arc;
   private nameLabel: Phaser.GameObjects.Text;
+  private nameChip: Phaser.GameObjects.Graphics;
+  private groundShadow: Phaser.GameObjects.Ellipse;
+  private selectionRing: Phaser.GameObjects.Ellipse;
+  private accessory: Phaser.GameObjects.Graphics | null = null;
+  private primitiveBody: Phaser.GameObjects.GameObject[] = [];
+  private shadowBaseY = 0;
   private bounceTimer: Phaser.Time.TimerEvent | null = null;
   private animState: string = 'idle';
   private zzz: Phaser.GameObjects.Text | null = null;
@@ -41,9 +48,17 @@ export class Bunny extends Phaser.GameObjects.Container {
     const darkerTint = Phaser.Display.Color.ValueToColor(tint).darken(15).color;
     const bellyTint = Phaser.Display.Color.ValueToColor(tint).lighten(10).color;
 
-    // Shadow
-    const shadow = scene.add.ellipse(0, 55 * s, 50 * s, 12 * s, 0x000000, 0.15);
-    this.add(shadow);
+    // Grounding and selection polish. These stay visible even after SVG body assets load.
+    this.shadowBaseY = 55 * s;
+    this.groundShadow = scene.add.ellipse(0, this.shadowBaseY, 54 * s, 13 * s, 0x000000, 0.18);
+    this.groundShadow.setDepth(-3);
+    this.add(this.groundShadow);
+
+    this.selectionRing = scene.add.ellipse(0, this.shadowBaseY - 2, 66 * s, 18 * s, palette.brandPink, 0);
+    this.selectionRing.setStrokeStyle(2, palette.brandPink, 0.72);
+    this.selectionRing.setDepth(-2);
+    this.selectionRing.setVisible(false);
+    this.add(this.selectionRing);
 
     // Tail (behind body)
     this.tail = scene.add.ellipse(-22 * s, 20 * s, 16 * s, 14 * s, tint);
@@ -148,12 +163,14 @@ export class Bunny extends Phaser.GameObjects.Container {
     }
 
     // Name label
+    this.nameChip = scene.add.graphics();
+    this.drawNameChip(62 * s);
+    this.add(this.nameChip);
+
     this.nameLabel = scene.add.text(0, 62 * s, name, {
-      fontFamily: 'Nunito, Arial, sans-serif',
+      fontFamily: typography.families.body,
       fontSize: `${Math.max(10, 12 * s)}px`,
-      color: '#ffffff',
-      stroke: '#333333',
-      strokeThickness: 3,
+      color: cssPalette.plumDeep,
       fontStyle: 'bold',
     }).setOrigin(0.5);
     this.add(this.nameLabel);
@@ -161,7 +178,7 @@ export class Bunny extends Phaser.GameObjects.Container {
     // Egg override - hide everything except body
     if (stage === 'egg') {
       this.list.forEach((child, i) => {
-        if (child !== this.bodyShape && child !== shadow && child !== this.nameLabel) {
+        if (child !== this.bodyShape && child !== this.groundShadow && child !== this.selectionRing && child !== this.nameChip && child !== this.nameLabel) {
           (child as Phaser.GameObjects.Shape).setVisible(false);
         }
       });
@@ -172,6 +189,7 @@ export class Bunny extends Phaser.GameObjects.Container {
       this.nameLabel.setY(35);
     }
 
+    this.capturePrimitiveBody();
     (scene.add as any).existing(this);
     this.startIdleBounce();
   }
@@ -225,13 +243,14 @@ export class Bunny extends Phaser.GameObjects.Container {
         this.spriteAsset = null;
       }
 
-      this.setDrawnBodyVisible(false);
+      this.removePrimitiveBody();
       const s = this.getStageScale();
       this.spriteAsset = this.scene.add.image(0, yOffset * s, ref.key);
       const size = this.getAssetDisplaySize(ref, s);
       this.spriteAsset.setDisplaySize(size, size);
       this.spriteAsset.setDepth(2);
       this.add(this.spriteAsset);
+      this.addIdentityAccessory(s);
     };
 
     if (this.scene.textures.exists(ref.key)) {
@@ -374,7 +393,7 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.scene.tweens.killTweensOf(this);
     this.scene.tweens.killTweensOf(this.leftEar);
     this.scene.tweens.killTweensOf(this.rightEar);
-    this.setDrawnBodyVisible(true);
+    if (this.stage === 'egg') this.setDrawnBodyVisible(true);
     this.leftEye.setScale(1, 1);
     this.rightEye.setScale(1, 1);
     this.mouth.setAngle(0);
@@ -382,16 +401,94 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.rightEar.setAngle(10);
     this.setAngle(0);
     this.setScale(1);
+    this.updateGroundShadow();
     const tint = BUNNY_COLORS[this.color] || 0xfff5ee;
     this.bodyShape.setFillStyle(tint);
   }
 
   private setDrawnBodyVisible(visible: boolean) {
-    this.list.forEach(child => {
-      if (child !== this.nameLabel && child !== this.zzz && child !== this.spriteAsset) {
-        (child as Phaser.GameObjects.GameObject & { setVisible?: (value: boolean) => void }).setVisible?.(visible);
-      }
+    this.primitiveBody.forEach(child => {
+      (child as Phaser.GameObjects.GameObject & { setVisible?: (value: boolean) => void }).setVisible?.(visible);
     });
+  }
+
+  private capturePrimitiveBody() {
+    const keep = new Set<Phaser.GameObjects.GameObject>([
+      this.groundShadow,
+      this.selectionRing,
+      this.nameChip,
+      this.nameLabel,
+    ]);
+    this.primitiveBody = this.list.filter((child): child is Phaser.GameObjects.GameObject => {
+      return child instanceof Phaser.GameObjects.GameObject && !keep.has(child);
+    });
+  }
+
+  private removePrimitiveBody() {
+    if (this.stage === 'egg' || this.primitiveBody.length === 0) return;
+    this.primitiveBody.forEach(child => child.destroy());
+    this.primitiveBody = [];
+  }
+
+  private drawNameChip(y: number) {
+    this.nameChip.clear();
+    const width = Math.max(54, this.bunnyName.length * 7 + 22);
+    this.nameChip.fillStyle(palette.cream, 0.9);
+    this.nameChip.fillRoundedRect(-width / 2, y - 11, width, 22, 11);
+    this.nameChip.lineStyle(1, palette.white, 0.75);
+    this.nameChip.strokeRoundedRect(-width / 2 + 1, y - 10, width - 2, 20, 10);
+  }
+
+  private addIdentityAccessory(scale: number) {
+    if (this.accessory) { this.accessory.destroy(); this.accessory = null; }
+    const role = this.getRole();
+    this.accessory = this.scene.add.graphics();
+    this.accessory.setDepth(3);
+    if (role === 'mother') {
+      this.accessory.fillStyle(0xc9a7ff, 0.95);
+      this.accessory.fillRoundedRect(-25 * scale, 12 * scale, 50 * scale, 10 * scale, 5 * scale);
+      this.accessory.fillTriangle(-18 * scale, 20 * scale, -5 * scale, 20 * scale, -12 * scale, 35 * scale);
+    } else if (role === 'father') {
+      this.accessory.fillStyle(palette.sage, 0.96);
+      this.accessory.fillTriangle(-5 * scale, 8 * scale, -26 * scale, -2 * scale, -26 * scale, 18 * scale);
+      this.accessory.fillTriangle(5 * scale, 8 * scale, 26 * scale, -2 * scale, 26 * scale, 18 * scale);
+      this.accessory.fillStyle(palette.plumDeep, 0.75);
+      this.accessory.fillCircle(0, 8 * scale, 4 * scale);
+    } else {
+      this.accessory.fillStyle(palette.butter, 0.98);
+      this.accessory.fillCircle(-12 * scale, -34 * scale, 8 * scale);
+      this.accessory.fillCircle(12 * scale, -34 * scale, 8 * scale);
+      this.accessory.fillStyle(palette.brandPink, 0.92);
+      this.accessory.fillCircle(0, -34 * scale, 4 * scale);
+    }
+    this.add(this.accessory);
+  }
+
+  private updateGroundShadow() {
+    const jump = Math.max(0, this.shadowBaseY - this.y);
+    const scale = Phaser.Math.Clamp(1 - jump / 260, 0.72, 1.08);
+    this.groundShadow.setScale(scale, Phaser.Math.Clamp(scale * 0.92, 0.65, 1));
+  }
+
+  setSelected(selected: boolean) {
+    this.selectionRing.setVisible(selected);
+    this.scene.tweens.killTweensOf(this.selectionRing);
+    if (selected) {
+      this.selectionRing.setAlpha(0.95);
+      this.scene.tweens.add({
+        targets: this.selectionRing,
+        scaleX: 1.12,
+        scaleY: 1.18,
+        alpha: 0.42,
+        duration: 720,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      });
+    } else {
+      this.selectionRing.setAlpha(0);
+      this.selectionRing.setScale(1);
+    }
   }
 
   setInteractable(onClick: () => void) {
@@ -423,10 +520,12 @@ export class Bunny extends Phaser.GameObjects.Container {
     this.on('drag', (_pointer: Phaser.Input.Pointer, dragX: number, dragY: number) => {
       this.x = dragX;
       this.y = dragY;
+      this.updateGroundShadow();
       onMove?.(dragX, dragY);
     });
     this.on('dragend', () => {
       this.setScale(1);
+    this.updateGroundShadow();
       this.startIdleBounce();
     });
   }
@@ -434,6 +533,7 @@ export class Bunny extends Phaser.GameObjects.Container {
   moveBy(dx: number, dy: number) {
     this.x += dx;
     this.y += dy;
+    this.updateGroundShadow();
   }
 
   destroy(fromScene?: boolean) {

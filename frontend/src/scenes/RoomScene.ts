@@ -178,8 +178,12 @@ export abstract class RoomScene extends Phaser.Scene {
       const bx = 50 + spacing * (i + 1);
       const bunny = new Bunny(this, bx, groundY, b.id, b.name, b.color, b.stage as LifeStage, identityById[b.id] ?? null);
       bunny.setDepth(3);
+      const refreshSelectionRings = () => {
+        this.bunnyObjects.forEach(item => item.setSelected(item.bunnyId === selectedBunnyId));
+      };
       const select = () => {
         setSelectedBunny(b.id);
+        refreshSelectionRings();
         this.scene.get('HUDScene')?.events.emit('bunnySelected', b.id);
       };
       bunny.setDraggable(select, (x, y) => {
@@ -193,6 +197,7 @@ export abstract class RoomScene extends Phaser.Scene {
     if (!selectedBunnyId && alive.length > 0) {
       setSelectedBunny(alive[0].id);
     }
+    this.bunnyObjects.forEach(item => item.setSelected(item.bunnyId === selectedBunnyId));
   }
 
   protected async applyAction(action: CareAction, bunnyId: string) {
