@@ -1,16 +1,17 @@
 import Phaser from 'phaser';
-import { GAME_WIDTH } from '../config';
+import { getLayout } from '../ui/layout';
 import { RoomScene } from './RoomScene';
 import { prefersReducedMotion } from '../utils/accessibility';
 
-const H = 480;
 
 export class VetScene extends RoomScene {
   constructor() { super({ key: 'VetScene' }); }
   getRoomName() { return '💊 Vet Office'; }
 
   drawRoom() {
-    this.add.image(GAME_WIDTH / 2, H / 2, 'room-vet').setDisplaySize(GAME_WIDTH, H);
+    const layout = getLayout(this);
+    const H = layout.playBottom;
+    this.add.image(layout.width / 2, H / 2, 'room-vet').setDisplaySize(layout.width, H);
   }
 
 

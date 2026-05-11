@@ -6,17 +6,23 @@
   <title>🐰 Bunny Family</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body {
+    html, body {
+      width: 100%;
+      height: 100%;
       background: #1a1a3e;
+    }
+    body {
       display: flex;
       justify-content: center;
       align-items: center;
       min-height: 100vh;
+      min-height: 100dvh;
       overflow: hidden;
+      padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
       font-family: Arial, sans-serif;
     }
-    #game-container { position: relative; }
-    canvas { display: block; }
+    #game-container { position: relative; width: 100vw; height: 100dvh; overflow: hidden; }
+    canvas { display: block; width: 100%; height: 100%; touch-action: manipulation; }
     .sr-only {
       position: absolute;
       width: 1px;
