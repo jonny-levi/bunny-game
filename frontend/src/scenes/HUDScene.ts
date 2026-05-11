@@ -5,7 +5,8 @@ import { ActionButton } from '../objects/ActionButton';
 import { gameBunnies, selectedBunnyId } from './RoomScene';
 import { toggleMute, isMuted } from '../utils/sound';
 import { ACTION_COOLDOWNS, CARE_ACTIONS, type CareAction } from '../game/actions';
-import { addIcon } from '../ui/Icon';
+import { addIcon, type IconName } from '../ui/Icon';
+import { cssPalette, palette, typography } from '../ui/tokens';
 
 const HUD_PREF_KEY = 'bunny:hud-expanded';
 const SIDE_PANEL_WIDTH = 184;
@@ -22,7 +23,8 @@ export class HUDScene extends Phaser.Scene {
   private actionButtons = new Map<CareAction, ActionButton>();
   private cooldownUntil = new Map<CareAction, number>();
   private panel!: Phaser.GameObjects.Container;
-  private panelBg!: Phaser.GameObjects.Rectangle;
+  private panelBg!: Phaser.GameObjects.Graphics;
+  private needDots = new Map<string, Phaser.GameObjects.Text>();
   private toggleBtn!: Phaser.GameObjects.Text;
   private compactSummary!: Phaser.GameObjects.Text;
   private expandedContent!: Phaser.GameObjects.Container;
@@ -64,13 +66,11 @@ export class HUDScene extends Phaser.Scene {
 
   private createSidePanel() {
     this.panel = this.add.container(0, 0).setDepth(50);
-    this.panelBg = this.add.rectangle(0, 0, SIDE_PANEL_WIDTH, PLAY_AREA_HEIGHT - 24, 0x1a1a2e, 0.9)
-      .setOrigin(0, 0)
-      .setStrokeStyle(2, COLORS.accent, 0.55);
+    this.panelBg = this.add.graphics();
     this.panel.add(this.panelBg);
 
     this.toggleBtn = this.add.text(0, 0, '', {
-      fontFamily: 'Nunito, Arial, sans-serif',
+      fontFamily: typography.families.display,
       fontSize: '15px',
       color: '#ffffff',
       backgroundColor: '#ff6b9d',
@@ -85,9 +85,9 @@ export class HUDScene extends Phaser.Scene {
     this.panel.add(this.toggleBtn);
 
     this.compactSummary = this.add.text(0, 0, '🐰\n--', {
-      fontFamily: 'Nunito, Arial, sans-serif',
+      fontFamily: typography.families.body,
       fontSize: '12px',
-      color: '#ffffff',
+      color: cssPalette.plumDeep,
       align: 'center',
       lineSpacing: 7,
     }).setOrigin(0.5, 0);
@@ -97,22 +97,22 @@ export class HUDScene extends Phaser.Scene {
     this.panel.add(this.expandedContent);
 
     this.bunnyNameText = this.add.text(12, 14, 'Select a bunny', {
-      fontFamily: 'Nunito, Arial, sans-serif',
-      fontSize: '13px',
-      color: '#ff6b9d',
+      fontFamily: typography.families.display,
+      fontSize: '15px',
+      color: cssPalette.plumDeep,
       fontStyle: 'bold',
-      wordWrap: { width: SIDE_PANEL_WIDTH - 34 },
+      wordWrap: { width: SIDE_PANEL_WIDTH - 44 },
     });
     this.expandedContent.add(this.bunnyNameText);
 
     const barX = 12;
     const barY = 52;
     this.statBars = {
-      hunger: new StatBar(this, barX, barY, '🍳 Hunger', COLORS.hunger, 92),
-      happiness: new StatBar(this, barX, barY + 24, '😊 Happy', COLORS.happiness, 92),
-      cleanliness: new StatBar(this, barX, barY + 48, '🛁 Clean', COLORS.cleanliness, 92),
-      energy: new StatBar(this, barX, barY + 72, '⚡ Energy', COLORS.energy, 92),
-      health: new StatBar(this, barX, barY + 96, '❤️ Health', COLORS.health, 92),
+      hunger: new StatBar(this, barX, barY, 'Hunger', COLORS.hunger, 102, 'feed'),
+      happiness: new StatBar(this, barX, barY + 30, 'Happy', COLORS.happiness, 102, 'play'),
+      cleanliness: new StatBar(this, barX, barY + 60, 'Clean', COLORS.cleanliness, 102, 'clean'),
+      energy: new StatBar(this, barX, barY + 90, 'Energy', COLORS.energy, 102, 'sleep'),
+      health: new StatBar(this, barX, barY + 120, 'Health', COLORS.health, 102, 'medicine'),
     };
     Object.values(this.statBars).forEach(bar => this.expandedContent.add(bar));
 
@@ -125,16 +125,16 @@ export class HUDScene extends Phaser.Scene {
       breed: COLORS.btnBreed,
     };
     CARE_ACTIONS.forEach((a, i) => {
-      const x = i % 2 === 0 ? 55 : 134;
-      const y = 210 + Math.floor(i / 2) * 42;
-      const btn = new ActionButton(this, x, y, a.label, actionColors[a.action], () => {
+      const x = 38 + (i % 3) * 55;
+      const y = 230 + Math.floor(i / 3) * 83;
+      const btn = new ActionButton(this, x, y, a.shortLabel, actionColors[a.action], a.action as IconName, () => {
         this.doRoomAction(a.action);
-      }, 70, 32);
+      });
       this.actionButtons.set(a.action, btn);
       this.expandedContent.add(btn);
     });
 
-    const initialMuteIcon = addIcon(this, isMuted() ? 'mute' : 'unmute', SIDE_PANEL_WIDTH - 22, PLAY_AREA_HEIGHT - 62, 22)
+    const initialMuteIcon = addIcon(this, isMuted() ? 'mute' : 'unmute', SIDE_PANEL_WIDTH - 24, PLAY_AREA_HEIGHT - 54, 24)
       .setInteractive({ useHandCursor: true });
     this.muteBtn = initialMuteIcon;
     this.muteBtn.on('pointerdown', () => {
@@ -154,8 +154,7 @@ export class HUDScene extends Phaser.Scene {
     const y = this.isMobile && !this.hudExpanded ? SIDE_PANEL_MARGIN + 38 : SIDE_PANEL_MARGIN;
 
     this.panel.setPosition(x, y);
-    this.panelBg.setSize(width, height);
-    this.panelBg.setAlpha(this.hudExpanded ? 0.9 : 0.82);
+    this.drawPanelBg(width, height);
     this.toggleBtn.setPosition(width - 8, 8);
     this.toggleBtn.setText(this.hudExpanded ? '›' : '‹');
     this.compactSummary.setPosition(width / 2, 38);
@@ -163,29 +162,73 @@ export class HUDScene extends Phaser.Scene {
     this.expandedContent.setVisible(this.hudExpanded);
   }
 
+
+  private drawPanelBg(width: number, height: number) {
+    this.panelBg.clear();
+    this.panelBg.fillStyle(palette.plumDeep, 0.18);
+    this.panelBg.fillRoundedRect(4, 6, width, height, 16);
+    this.panelBg.fillStyle(palette.cream, this.hudExpanded ? 0.94 : 0.86);
+    this.panelBg.fillRoundedRect(0, 0, width, height, 16);
+    this.panelBg.lineStyle(1, palette.white, 0.68);
+    this.panelBg.strokeRoundedRect(1, 1, width - 2, height - 2, 15);
+    this.panelBg.lineStyle(2, palette.brandPink, 0.18);
+    this.panelBg.strokeRoundedRect(5, 5, width - 10, height - 10, 12);
+  }
+
   private createNavigation() {
     const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
-    const arrowY = PLAY_AREA_HEIGHT / 2;
+    const dock = this.add.container(GAME_WIDTH / 2, PLAY_AREA_HEIGHT - 28).setDepth(45);
+    const shadow = this.add.graphics();
+    shadow.fillStyle(palette.plumDeep, 0.16);
+    shadow.fillRoundedRect(-191, -21, 382, 54, 18);
+    dock.add(shadow);
+    const bg = this.add.graphics();
+    bg.fillStyle(palette.cream, 0.92);
+    bg.fillRoundedRect(-191, -27, 382, 54, 18);
+    bg.lineStyle(1, palette.white, 0.7);
+    bg.strokeRoundedRect(-190, -26, 380, 52, 17);
+    dock.add(bg);
 
-    const leftArrow = this.add.text(18, arrowY, '◀', {
-      fontSize: '32px', color: '#ffffff', stroke: '#333', strokeThickness: 3,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setAlpha(0.7).setDepth(40);
+    const icons: Array<{ room: string; icon: IconName; label: string; need?: string }> = [
+      { room: 'LivingRoomScene', icon: 'play', label: 'Home', need: 'happiness' },
+      { room: 'KitchenScene', icon: 'feed', label: 'Food', need: 'hunger' },
+      { room: 'BathroomScene', icon: 'clean', label: 'Bath', need: 'cleanliness' },
+      { room: 'GardenScene', icon: 'breed', label: 'Yard' },
+      { room: 'BedroomScene', icon: 'sleep', label: 'Sleep', need: 'energy' },
+      { room: 'VetScene', icon: 'medicine', label: 'Vet', need: 'health' },
+      { room: 'NestScene', icon: 'seasonSun', label: 'Nest' },
+    ];
 
-    const rightArrow = this.add.text(GAME_WIDTH - 18, arrowY, '▶', {
-      fontSize: '32px', color: '#ffffff', stroke: '#333', strokeThickness: 3,
-    }).setOrigin(0.5).setInteractive({ useHandCursor: true }).setAlpha(0.7).setDepth(40);
-
-    leftArrow.on('pointerover', () => leftArrow.setAlpha(1));
-    leftArrow.on('pointerout', () => leftArrow.setAlpha(0.7));
-    rightArrow.on('pointerover', () => rightArrow.setAlpha(1));
-    rightArrow.on('pointerout', () => rightArrow.setAlpha(0.7));
-    leftArrow.on('pointerdown', () => this.navigateRoom(-1, rooms));
-    rightArrow.on('pointerdown', () => this.navigateRoom(1, rooms));
+    icons.forEach((item, index) => {
+      const x = -165 + index * 55;
+      const hit = this.add.rectangle(x, -1, 48, 48, palette.white, 0.01)
+        .setInteractive({ useHandCursor: true });
+      const icon = addIcon(this, item.icon, x, -7, 24);
+      const text = this.add.text(x, 17, item.label, {
+        fontFamily: typography.families.body,
+        fontSize: '9px',
+        color: cssPalette.plumDeep,
+        fontStyle: 'bold',
+      }).setOrigin(0.5);
+      const dot = this.add.text(x + 14, -22, '!', {
+        fontFamily: typography.families.display,
+        fontSize: '10px',
+        color: '#ffffff',
+        backgroundColor: cssPalette.danger,
+        padding: { x: 3, y: 0 },
+        fontStyle: 'bold',
+      }).setOrigin(0.5).setVisible(false);
+      if (item.need) this.needDots.set(item.need, dot);
+      hit.on('pointerover', () => icon.setScale(1.14));
+      hit.on('pointerout', () => icon.setScale(1));
+      hit.on('pointerdown', () => this.startRoom(item.room, rooms));
+      dock.add([hit, icon, text, dot]);
+    });
   }
 
   private createRoomLabel() {
     this.roomLabel = this.add.text(GAME_WIDTH / 2, 12, '', {
-      fontFamily: 'Nunito, Arial, sans-serif',
+      fontFamily: typography.families.display,
       fontSize: '16px',
       color: '#ffffff',
       stroke: '#333333',
@@ -197,7 +240,7 @@ export class HUDScene extends Phaser.Scene {
   private updateHUD() {
     const bunny = gameBunnies.find(b => b.id === selectedBunnyId) || gameBunnies.find(b => b.isAlive);
     if (bunny && this.statBars) {
-      this.bunnyNameText.setText(`🐰 ${bunny.name}\n${bunny.stage}`);
+      this.bunnyNameText.setText(`${bunny.name}\n${bunny.stage}`);
       this.statBars.hunger.setValue(bunny.hunger);
       this.statBars.happiness.setValue(bunny.happiness);
       this.statBars.cleanliness.setValue(bunny.cleanliness);
@@ -205,9 +248,11 @@ export class HUDScene extends Phaser.Scene {
       this.statBars.health.setValue(bunny.health);
       const lowest = Math.min(bunny.hunger, bunny.happiness, bunny.cleanliness, bunny.energy, bunny.health);
       this.compactSummary.setText(`🐰\n${Math.round(lowest)}%\nneeds`);
+      this.updateNeedDots(bunny);
     } else {
       this.bunnyNameText.setText('No bunny selected');
       this.compactSummary.setText('🐰\n--');
+      this.updateNeedDots(null);
     }
 
     const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
@@ -247,8 +292,42 @@ export class HUDScene extends Phaser.Scene {
   private updateCooldowns() {
     const now = Date.now();
     this.actionButtons.forEach((button, action) => {
-      button.setCooldown(Math.max(0, (this.cooldownUntil.get(action) ?? 0) - now));
+      button.setCooldown(Math.max(0, (this.cooldownUntil.get(action) ?? 0) - now), ACTION_COOLDOWNS[action]);
     });
+  }
+
+
+  private updateNeedDots(bunny: any | null) {
+    const values: Record<string, number> = bunny ? {
+      hunger: bunny.hunger,
+      happiness: bunny.happiness,
+      cleanliness: bunny.cleanliness,
+      energy: bunny.energy,
+      health: bunny.health,
+    } : {};
+    this.needDots.forEach((dot, need) => dot.setVisible((values[need] ?? 100) < 30));
+  }
+
+  private startRoom(next: string, rooms: string[]) {
+    const activeScenes = this.scene.manager.getScenes(true);
+    let currentKey = '';
+    for (const scene of activeScenes) {
+      if (scene !== this && rooms.includes(scene.scene.key)) {
+        currentKey = scene.scene.key;
+        break;
+      }
+    }
+    if (currentKey === next) return;
+    const currentScene = currentKey ? this.scene.get(currentKey) : null;
+    if (currentScene) {
+      currentScene.cameras.main.fadeOut(200);
+      currentScene.cameras.main.once('camerafadeoutcomplete', () => {
+        this.scene.stop(currentKey);
+        this.scene.start(next);
+      });
+      return;
+    }
+    this.scene.start(next);
   }
 
   private navigateRoom(dir: number, rooms: string[]) {
@@ -265,7 +344,7 @@ export class HUDScene extends Phaser.Scene {
     const next = rooms[(idx + dir + rooms.length) % rooms.length];
     const currentScene = this.scene.get(currentKey);
     if (currentScene) {
-      currentScene.cameras.main.fadeOut(250);
+      currentScene.cameras.main.fadeOut(200);
       currentScene.cameras.main.once('camerafadeoutcomplete', () => {
         this.scene.stop(currentKey);
         this.scene.start(next);
