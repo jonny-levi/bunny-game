@@ -14,7 +14,7 @@ export class StatBar extends Phaser.GameObjects.Container {
     this.barColor = color;
 
     this.label = scene.add.text(0, 0, labelText, {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '10px',
       color: '#ffffff',
       fontStyle: 'bold',

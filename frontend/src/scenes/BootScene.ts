@@ -1,11 +1,13 @@
 import Phaser from 'phaser';
 import { GAME_WIDTH, GAME_HEIGHT } from '../config';
 import { currentIdentityAssets } from '../state/identityRegistry';
+import { preloadIcons } from '../ui/Icon';
 
 export class BootScene extends Phaser.Scene {
   constructor() { super({ key: 'BootScene' }); }
 
   preload() {
+    preloadIcons(this);
     // Preload only the persisted selected identities plus index-1 fallbacks.
     // The full 400-SVG library lives in /assets and is lazy-loaded by scenes
     // when a new identity/state becomes visible.
@@ -24,7 +26,7 @@ export class BootScene extends Phaser.Scene {
     this.add.rectangle(cx, cy, GAME_WIDTH, GAME_HEIGHT, 0x1a1a3e);
 
     this.add.text(cx, cy - 80, '🐰 Bunny Family 🐰', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '28px',
       color: '#ff6b9d',
       stroke: '#1a1a3e',
@@ -37,7 +39,7 @@ export class BootScene extends Phaser.Scene {
     const barFill = this.add.rectangle(cx - 148, cy, 0, 12, 0xff6b9d).setOrigin(0, 0.5);
 
     const statusText = this.add.text(cx, cy + 25, 'Loading...', {
-      fontFamily: 'Arial, sans-serif',
+      fontFamily: 'Nunito, Arial, sans-serif',
       fontSize: '12px',
       color: '#ffffff',
     }).setOrigin(0.5);
