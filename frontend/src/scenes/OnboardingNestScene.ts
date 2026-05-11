@@ -7,6 +7,7 @@ import {
   shouldHatch,
   performHatch,
   getIdentities,
+  isHatched,
   HATCH_TAPS,
   assetFor,
   bunnyAssetRef,
@@ -29,6 +30,15 @@ export class OnboardingNestScene extends Phaser.Scene {
   constructor() { super({ key: 'OnboardingNestScene' }); }
 
   create() {
+    // Issue #42: if a returning player lands here after hatch is already
+    // complete, the onboarding egg is non-interactive and there are no room
+    // controls — they get stranded. Redirect into the playable rooms instead.
+    if (isHatched()) {
+      this.scene.start('LivingRoomScene');
+      this.scene.launch('HUDScene');
+      return;
+    }
+
     const { father, mother } = ensureParents();
     this.drawNestBackdrop();
     this.drawParents(father, mother);
