@@ -16,6 +16,7 @@ export class KitchenScene extends RoomScene {
     super.create();
     this.bunnyObjects.forEach(b => {
       b.playEating();
+      this.playRoomActionFlair('feed', b);
       this.time.delayedCall(3000, () => b.startIdleBounce());
     });
   }

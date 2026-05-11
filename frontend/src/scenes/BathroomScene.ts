@@ -12,4 +12,13 @@ export class BathroomScene extends RoomScene {
     this.add.image(GAME_WIDTH / 2, H / 2, 'room-bathroom').setDisplaySize(GAME_WIDTH, H);
   }
 
+
+  create() {
+    super.create();
+    this.bunnyObjects.forEach(b => {
+      b.playBathing();
+      this.playRoomActionFlair('clean', b);
+      this.time.delayedCall(2200, () => b.startIdleBounce());
+    });
+  }
 }

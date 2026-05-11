@@ -29,6 +29,7 @@ export class Bunny extends Phaser.GameObjects.Container {
   private belly: Phaser.GameObjects.Ellipse;
   private spriteAsset: Phaser.GameObjects.Image | null = null;
   private identity: CharacterIdentity | null = null;
+  private actionProps: Phaser.GameObjects.GameObject[] = [];
 
   public bunnyId: string;
   public bunnyName: string;
@@ -361,6 +362,94 @@ export class Bunny extends Phaser.GameObjects.Container {
     });
   }
 
+
+  floatStat(amount: number, color: number) {
+    if (amount === 0) return;
+    const prefix = amount > 0 ? '+' : '';
+    const text = this.scene.add.text(this.x, this.y - 92, `${prefix}${amount}`, {
+      fontFamily: typography.families.display,
+      fontSize: '24px',
+      color: Phaser.Display.Color.IntegerToColor(color).rgba,
+      stroke: cssPalette.plumDeep,
+      strokeThickness: 4,
+      shadow: { offsetX: 0, offsetY: 3, color: 'rgba(42,36,64,0.25)', blur: 5, fill: true },
+    }).setOrigin(0.5).setDepth(30);
+    this.scene.tweens.add({
+      targets: text,
+      y: text.y - 46,
+      alpha: 0,
+      scale: { from: 1.08, to: 0.86 },
+      duration: 1200,
+      ease: 'Cubic.easeOut',
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  playBathing() {
+    this.stopAnim();
+    this.animState = 'bathing';
+    this.showSpriteAsset(this.getAssetRef(this.getRole() === 'baby' ? 'playing' : 'normal'));
+    for (let i = 0; i < 7; i++) {
+      const bubble = this.scene.add.circle(Phaser.Math.Between(-28, 28), Phaser.Math.Between(-8, 42), Phaser.Math.Between(4, 9), palette.sky, 0.44);
+      bubble.setStrokeStyle(1, palette.white, 0.65);
+      this.actionProps.push(bubble);
+      this.add(bubble);
+      this.scene.tweens.add({
+        targets: bubble,
+        x: bubble.x + Phaser.Math.Between(-18, 18),
+        y: bubble.y - Phaser.Math.Between(36, 70),
+        alpha: 0,
+        scale: 1.45,
+        duration: Phaser.Math.Between(850, 1350),
+        repeat: -1,
+        delay: i * 90,
+        ease: 'Sine.easeOut',
+      });
+    }
+    this.bounceTimer = this.scene.time.addEvent({
+      delay: 420,
+      loop: true,
+      callback: () => {
+        this.scene.tweens.add({ targets: this, angle: { from: -4, to: 4 }, duration: 210, yoyo: true, ease: 'Sine.easeInOut' });
+      },
+    });
+  }
+
+  playMedicine() {
+    this.stopAnim();
+    this.animState = 'medicine';
+    this.showSpriteAsset(this.getAssetRef(this.getRole() === 'baby' ? 'normal' : 'normal'));
+    const heart = this.scene.add.text(0, -76, '💚', { fontSize: '24px' }).setOrigin(0.5);
+    const cross = this.scene.add.text(22, -38, '✚', {
+      fontFamily: typography.families.display,
+      fontSize: '20px',
+      color: cssPalette.white,
+      stroke: cssPalette.plumDeep,
+      strokeThickness: 3,
+    }).setOrigin(0.5);
+    this.actionProps.push(heart, cross);
+    this.add([heart, cross]);
+    this.scene.tweens.add({ targets: heart, y: -105, alpha: 0.2, scale: 1.25, duration: 900, yoyo: true, repeat: -1, ease: 'Sine.easeInOut' });
+    this.scene.tweens.add({ targets: cross, angle: 360, duration: 1600, repeat: -1, ease: 'Linear' });
+    this.bounceTimer = this.scene.time.addEvent({
+      delay: 650,
+      loop: true,
+      callback: () => {
+        this.scene.tweens.add({ targets: this, scaleX: 1.03, scaleY: 0.97, duration: 240, yoyo: true, ease: 'Sine.easeInOut' });
+      },
+    });
+  }
+
+  playActionFeedback(action: 'feed' | 'clean' | 'play' | 'sleep' | 'medicine') {
+    switch (action) {
+      case 'feed': this.playEating(); break;
+      case 'clean': this.playBathing(); break;
+      case 'play': this.playPlaying(); break;
+      case 'sleep': this.playSleeping(); break;
+      case 'medicine': this.playMedicine(); break;
+    }
+  }
+
   playSad() {
     this.stopAnim();
     this.animState = 'sad';
@@ -385,6 +474,8 @@ export class Bunny extends Phaser.GameObjects.Container {
   stopAnim() {
     if (this.bounceTimer) { this.bounceTimer.destroy(); this.bounceTimer = null; }
     if (this.zzz) { this.zzz.destroy(); this.zzz = null; }
+    this.actionProps.forEach(prop => { this.scene.tweens.killTweensOf(prop); prop.destroy(); });
+    this.actionProps = [];
     if (this.spriteAsset) {
       this.scene.tweens.killTweensOf(this.spriteAsset);
       this.spriteAsset.destroy();

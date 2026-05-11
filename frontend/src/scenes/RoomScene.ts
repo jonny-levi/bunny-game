@@ -9,10 +9,27 @@ import { applyDecay, catchUpNeeds, legacyStatsFromNeeds, NEEDS_BALANCE, normaliz
 import type { LifeStage } from '../config';
 import { isCareAction, type CareAction } from '../game/actions';
 import { playBreed, playClean, playFeed, playMedicine, playPlay, playSleep } from '../utils/sound';
+import { needColors, palette, typography, cssPalette } from '../ui/tokens';
 
 const PLAY_AREA_HEIGHT = 480; // Game area above toolbar
 const MOVE_BOUNDS = { minX: 60, maxX: GAME_WIDTH - 60, minY: 120, maxY: PLAY_AREA_HEIGHT - 60 };
 const ARROW_STEP = 14;
+
+type StatKey = 'hunger' | 'energy' | 'happiness' | 'cleanliness' | 'health';
+const ACTION_STAT: Partial<Record<CareAction, StatKey>> = {
+  feed: 'hunger',
+  clean: 'cleanliness',
+  play: 'happiness',
+  sleep: 'energy',
+  medicine: 'health',
+};
+const STAT_FLOAT_COLORS: Record<StatKey, number> = {
+  hunger: needColors.hunger,
+  energy: needColors.energy,
+  happiness: needColors.happiness,
+  cleanliness: needColors.cleanliness,
+  health: needColors.health,
+};
 
 // Shared state
 export let gameBunnies: BunnyState[] = [];
@@ -206,6 +223,13 @@ export abstract class RoomScene extends Phaser.Scene {
 
     const playerName = this.registry.get('playerName') || 'Someone';
     const emojis: Record<CareAction, string> = { feed: '🍳', clean: '🛁', play: '🎾', sleep: '💤', medicine: '💊', breed: '💕' };
+    const beforeStats: Record<StatKey, number> = {
+      hunger: b.hunger,
+      energy: b.energy,
+      happiness: b.happiness,
+      cleanliness: b.cleanliness,
+      health: b.health,
+    };
 
     switch (action) {
       case 'feed': playFeed(); break;
@@ -238,6 +262,13 @@ export abstract class RoomScene extends Phaser.Scene {
       }
     }
 
+    const boostedStat = ACTION_STAT[action];
+    const bunnyObj = this.bunnyObjects.find(item => item.bunnyId === bunnyId);
+    if (boostedStat && bunnyObj) {
+      const delta = Math.round(b[boostedStat] - beforeStats[boostedStat]);
+      if (delta !== 0) bunnyObj.floatStat(delta, STAT_FLOAT_COLORS[boostedStat]);
+    }
+
     if ((b.id === 'baby' || b.stage === 'baby') && !isServerBackedBunny(b)) {
       localNeedsState.needs = normalizeNeeds({
         hunger: b.hunger,
@@ -260,6 +291,53 @@ export abstract class RoomScene extends Phaser.Scene {
     };
     addActivity(`${playerName} ${verbs[action]} ${b.name} ${emojis[action] || ''}`);
     wsClient.sendAction(action, bunnyId);
+  }
+
+  protected playRoomActionFlair(action: CareAction, bunnyObj: Bunny) {
+    if (action === 'feed') this.spawnFoodArc(bunnyObj);
+    if (action === 'clean') this.spawnBubbleBurst(bunnyObj);
+    if (action === 'play') this.spawnToyBounce(bunnyObj);
+    if (action === 'medicine') this.spawnVetSparkle(bunnyObj);
+  }
+
+  private spawnFoodArc(bunny: Bunny) {
+    const food = this.add.text(bunny.x - 82, bunny.y - 18, '🥕', { fontSize: '26px' }).setOrigin(0.5).setDepth(28);
+    this.tweens.add({
+      targets: food,
+      x: bunny.x + 4,
+      y: bunny.y - 42,
+      angle: 340,
+      scale: 0.72,
+      duration: 620,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        const pop = this.add.text(bunny.x + 8, bunny.y - 66, 'pop!', { fontFamily: typography.families.display, fontSize: '18px', color: cssPalette.plumDeep }).setOrigin(0.5).setDepth(29);
+        food.destroy();
+        this.tweens.add({ targets: pop, y: pop.y - 20, alpha: 0, duration: 520, ease: 'Cubic.easeOut', onComplete: () => pop.destroy() });
+      },
+    });
+  }
+
+  private spawnBubbleBurst(bunny: Bunny) {
+    for (let i = 0; i < 10; i++) {
+      const bubble = this.add.circle(bunny.x + Phaser.Math.Between(-36, 36), bunny.y + Phaser.Math.Between(-20, 36), Phaser.Math.Between(4, 10), palette.sky, 0.42).setDepth(27);
+      bubble.setStrokeStyle(1, palette.white, 0.7);
+      this.tweens.add({ targets: bubble, x: bubble.x + Phaser.Math.Between(-24, 24), y: bubble.y - Phaser.Math.Between(34, 76), alpha: 0, scale: 1.35, duration: Phaser.Math.Between(700, 1150), ease: 'Sine.easeOut', onComplete: () => bubble.destroy() });
+    }
+  }
+
+  private spawnToyBounce(bunny: Bunny) {
+    const ball = this.add.circle(bunny.x - 96, bunny.y + 8, 13, palette.butter, 1).setDepth(28);
+    ball.setStrokeStyle(4, palette.brandPink, 0.85);
+    this.tweens.add({ targets: ball, x: bunny.x + 64, y: bunny.y - 46, angle: 720, duration: 760, yoyo: true, ease: 'Sine.easeInOut', onComplete: () => ball.destroy() });
+  }
+
+  private spawnVetSparkle(bunny: Bunny) {
+    const halo = this.add.circle(bunny.x, bunny.y - 42, 42, palette.success, 0.12).setDepth(27);
+    halo.setStrokeStyle(3, palette.success, 0.58);
+    const heart = this.add.text(bunny.x, bunny.y - 82, '💚', { fontSize: '28px' }).setOrigin(0.5).setDepth(29);
+    this.tweens.add({ targets: halo, scale: 1.35, alpha: 0, duration: 900, ease: 'Cubic.easeOut', onComplete: () => halo.destroy() });
+    this.tweens.add({ targets: heart, y: heart.y - 34, alpha: 0, duration: 900, ease: 'Cubic.easeOut', onComplete: () => heart.destroy() });
   }
 
   doAction(action: string) {
@@ -288,14 +366,11 @@ export abstract class RoomScene extends Phaser.Scene {
       });
     } else {
       const bunnyObj = this.bunnyObjects.find(b => b.bunnyId === selectedBunnyId);
-      if (bunnyObj) {
-        switch (action) {
-          case 'feed': bunnyObj.playEating(); this.time.delayedCall(2000, () => bunnyObj.startIdleBounce()); break;
-          case 'sleep': bunnyObj.playSleeping(); this.time.delayedCall(3000, () => bunnyObj.startIdleBounce()); break;
-          case 'play': bunnyObj.playPlaying(); this.time.delayedCall(2000, () => bunnyObj.startIdleBounce()); break;
-          case 'clean': bunnyObj.playPlaying(); this.time.delayedCall(1500, () => bunnyObj.startIdleBounce()); break;
-          case 'medicine': bunnyObj.playPlaying(); this.time.delayedCall(1500, () => bunnyObj.startIdleBounce()); break;
-        }
+      if (bunnyObj && action !== 'breed') {
+        bunnyObj.playActionFeedback(action);
+        this.playRoomActionFlair(action, bunnyObj);
+        const duration = action === 'sleep' ? 3000 : action === 'feed' || action === 'play' ? 2000 : 1700;
+        this.time.delayedCall(duration, () => bunnyObj.startIdleBounce());
       }
     }
   }
