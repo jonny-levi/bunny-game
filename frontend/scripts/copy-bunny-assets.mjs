@@ -1,8 +1,9 @@
 #!/usr/bin/env node
-// Copy frontend/assets/bunnies/** into dist/assets/bunnies/** after vite build.
-// Vite only bundles assets it sees from JS imports; the bunny SVGs are loaded
-// at runtime by Phaser via absolute URLs like `/assets/bunnies/adult/1.svg`,
-// so they must be present in the served `dist/` tree.
+// Copy runtime-loaded frontend assets into dist/assets/** after vite build.
+// Vite only bundles assets it sees from JS imports; Phaser loads several
+// assets at runtime via absolute URLs such as `/assets/bunnies/adult/1.svg`
+// and `/assets/branding/login-hero.svg`, so they must be present in the
+// served `dist/` tree.
 //
 // Uses only Node built-ins so no extra devDependency is added.
 
@@ -12,8 +13,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const frontendRoot = resolve(__dirname, '..');
-const src = resolve(frontendRoot, 'assets', 'bunnies');
-const dest = resolve(frontendRoot, 'dist', 'assets', 'bunnies');
+const assetGroups = [
+  ['bunnies', resolve(frontendRoot, 'assets', 'bunnies'), resolve(frontendRoot, 'dist', 'assets', 'bunnies')],
+  ['branding', resolve(frontendRoot, 'assets', 'branding'), resolve(frontendRoot, 'dist', 'assets', 'branding')],
+];
 
 async function exists(path) {
   try {
@@ -35,16 +38,18 @@ async function countFiles(root) {
 }
 
 async function main() {
-  if (!(await exists(src))) {
-    console.error(`[copy-bunny-assets] source not found: ${src}`);
-    process.exit(1);
+  for (const [label, src, dest] of assetGroups) {
+    if (!(await exists(src))) {
+      console.error(`[copy-bunny-assets] source not found for ${label}: ${src}`);
+      process.exit(1);
+    }
+    if (await exists(dest)) {
+      await rm(dest, { recursive: true, force: true });
+    }
+    await cp(src, dest, { recursive: true });
+    const copied = await countFiles(dest);
+    console.log(`[copy-bunny-assets] copied ${copied} ${label} file(s) -> ${dest}`);
   }
-  if (await exists(dest)) {
-    await rm(dest, { recursive: true, force: true });
-  }
-  await cp(src, dest, { recursive: true });
-  const copied = await countFiles(dest);
-  console.log(`[copy-bunny-assets] copied ${copied} file(s) -> ${dest}`);
 }
 
 main().catch((err) => {
