@@ -17,6 +17,33 @@ const suffixes = [
 
 const usedNames = new Set<string>();
 
+export function generateMixedBunnyName(parentAName: string, parentBName: string): string {
+  const clean = (value: string) => value.trim().replace(/[^a-zA-Z]/g, '').toLowerCase();
+  const cap = (value: string) => value ? value.charAt(0).toUpperCase() + value.slice(1) : value;
+  const a = clean(parentAName);
+  const b = clean(parentBName);
+  if (a.length < 2 || b.length < 2) return generateBunnyName();
+
+  const combos = [
+    a.slice(0, Math.ceil(a.length / 2)) + b.slice(Math.floor(b.length / 2)),
+    b.slice(0, Math.ceil(b.length / 2)) + a.slice(Math.floor(a.length / 2)),
+    a.slice(0, 2) + b.slice(-2),
+    b.slice(0, 2) + a.slice(-2),
+    a[0] + b[1] + a.slice(-2),
+    b[0] + a[1] + b.slice(-2),
+  ]
+    .map(name => cap(name.slice(0, 8)))
+    .filter(name => name.length >= 3);
+
+  for (const name of combos.sort(() => Math.random() - 0.5)) {
+    if (!usedNames.has(name)) {
+      usedNames.add(name);
+      return name;
+    }
+  }
+  return generateBunnyName();
+}
+
 export function generateBunnyName(): string {
   for (let i = 0; i < 100; i++) {
     const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];

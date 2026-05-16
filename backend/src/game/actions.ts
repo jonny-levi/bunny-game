@@ -1,6 +1,6 @@
 import type { Bunny, ActionType } from '../shared/types';
 import { ACTION_EFFECTS, ACTION_EMOJI, BREEDING, BUNNY_COLORS, BUNNY_PATTERNS } from '../shared/constants';
-import { generateBunnyName } from './names';
+import { generateBunnyName, generateMixedBunnyName } from './names';
 import * as db from '../db/queries';
 
 function clamp(v: number, min = 0, max = 100): number {
@@ -104,7 +104,7 @@ async function performBreeding(
 
   const newBunny = await db.insertBunny({
     familyId: parentA.familyId,
-    name: generateBunnyName(),
+    name: generateMixedBunnyName(parentA.name, parentB.name),
     color, pattern,
     stage: 'egg',
     parentAId: parentA.id,

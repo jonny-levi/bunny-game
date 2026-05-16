@@ -130,13 +130,14 @@ export class WebSocketClient {
     }, 3000);
   }
 
-  sendAction(action: string, bunnyId: string) {
+  sendAction(action: string, bunnyId: string, targetBunnyId?: string) {
     if (this.ws && this.connected) {
       this.ws.send(JSON.stringify({
         type: 'action',
         action,
         bunnyId,
         playerId: this.playerId,
+        ...(targetBunnyId ? { targetBunnyId } : {}),
       }));
     }
   }

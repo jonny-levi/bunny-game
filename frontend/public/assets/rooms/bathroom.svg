@@ -1,15 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480">
 <defs>
-  <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#E0F7FA"/><stop offset="1" stop-color="#B2EBF2"/></linearGradient>
-  <linearGradient id="floor" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#B3E5FC"/><stop offset="1" stop-color="#81D4FA"/></linearGradient>
-  <filter id="soft"><feGaussianBlur stdDeviation="5"/></filter>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#d4e7ff"/><stop offset="1" stop-color="#e8f4ff"/></linearGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#b8d9f0"/><stop offset="1" stop-color="#fff1b8"/></linearGradient>
+  <filter id="shadow"><feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#5f315c" flood-opacity=".16"/></filter>
 </defs>
+<rect width="800" height="480" fill="url(#sky)"/>
+<g opacity=".72" fill="#fff"><ellipse cx="105" cy="74" rx="78" ry="25"/><ellipse cx="150" cy="60" rx="45" ry="22"/><ellipse cx="575" cy="92" rx="86" ry="28"/><ellipse cx="622" cy="78" rx="52" ry="24"/><ellipse cx="365" cy="48" rx="58" ry="18"/></g>
+<path d="M0 300c110-42 205-48 326-10 126 39 258 42 474-8v198H0z" fill="#b8e6d5" opacity=".7"/>
+<path d="M0 360c150-50 278-38 424-4 139 32 250 31 376-8v132H0z" fill="url(#floor)"/>
 
-<rect width="800" height="400" fill="url(#wall)"/><g opacity=".45"><path d="M0 0h800" stroke="#81D4FA"/><path d="M0 34h800" stroke="#81D4FA"/><path d="M0 68h800" stroke="#81D4FA"/><path d="M0 102h800" stroke="#81D4FA"/><path d="M0 136h800" stroke="#81D4FA"/><path d="M0 170h800" stroke="#81D4FA"/><path d="M0 204h800" stroke="#81D4FA"/><path d="M0 238h800" stroke="#81D4FA"/><path d="M0 272h800" stroke="#81D4FA"/><path d="M0 306h800" stroke="#81D4FA"/><path d="M0 340h800" stroke="#81D4FA"/><path d="M0 374h800" stroke="#81D4FA"/><path d="M0 0v400" stroke="#B2EBF2"/><path d="M48 0v400" stroke="#B2EBF2"/><path d="M96 0v400" stroke="#B2EBF2"/><path d="M144 0v400" stroke="#B2EBF2"/><path d="M192 0v400" stroke="#B2EBF2"/><path d="M240 0v400" stroke="#B2EBF2"/><path d="M288 0v400" stroke="#B2EBF2"/><path d="M336 0v400" stroke="#B2EBF2"/><path d="M384 0v400" stroke="#B2EBF2"/><path d="M432 0v400" stroke="#B2EBF2"/><path d="M480 0v400" stroke="#B2EBF2"/><path d="M528 0v400" stroke="#B2EBF2"/><path d="M576 0v400" stroke="#B2EBF2"/><path d="M624 0v400" stroke="#B2EBF2"/><path d="M672 0v400" stroke="#B2EBF2"/><path d="M720 0v400" stroke="#B2EBF2"/><path d="M768 0v400" stroke="#B2EBF2"/></g><rect y="400" width="800" height="80" fill="url(#floor)"/>
-<ellipse cx="400" cy="320" rx="128" ry="50" fill="#fff" stroke="#B0BEC5" stroke-width="5"/><ellipse cx="400" cy="313" rx="108" ry="34" fill="#81D4FA" opacity=".62"/><g fill="#fff" opacity=".62"><circle cx="346" cy="294" r="9"/><circle cx="395" cy="286" r="13"/><circle cx="444" cy="300" r="8"/></g>
-<path d="M400 260v-45h34" stroke="#BDBDBD" stroke-width="10" fill="none" stroke-linecap="round"/><circle cx="438" cy="214" r="10" fill="#E0E0E0"/>
-<ellipse cx="604" cy="112" rx="70" ry="88" fill="#F1F8E9" stroke="#FFD54F" stroke-width="7"/><path d="M570 72c25 14 48 39 62 76" stroke="#fff" stroke-width="5" opacity=".6"/>
-<rect x="104" y="168" width="64" height="8" rx="4" fill="#A1887F"/><rect x="112" y="176" width="48" height="70" rx="8" fill="#FF8A80"/>
-<path d="M463 296c25-14 46 5 34 23h-55c-2-10 5-18 21-23Z" fill="#FFD89C"/><circle cx="475" cy="288" r="13" fill="#FFD89C"/><circle cx="482" cy="286" r="2" fill="#333"/>
-
+<rect x="0" y="350" width="800" height="130" fill="#b8d9f0"/><g stroke="#a8c9e0" stroke-width="4" opacity=".8"><path d="M0 382h800M0 414h800M0 446h800"/><path d="M100 350v130M200 350v130M300 350v130M400 350v130M500 350v130M600 350v130M700 350v130"/></g>
+<rect x="498" y="250" width="244" height="126" rx="55" fill="#fff" stroke="#a8d0ff" stroke-width="10"/><ellipse cx="620" cy="292" rx="104" ry="46" fill="#d4e7ff" opacity=".72"/><path d="M610 218v42M610 218h62" stroke="#c0c0c0" stroke-width="10" stroke-linecap="round"/><g fill="#fff" opacity=".7"><circle cx="540" cy="238" r="24"/><circle cx="590" cy="224" r="18"/><circle cx="640" cy="232" r="28"/><circle cx="690" cy="252" r="20"/><circle cx="575" cy="272" r="16"/><circle cx="664" cy="284" r="14"/></g>
+<rect x="268" y="52" width="210" height="190" rx="34" fill="#e8f4ff" stroke="#fff" stroke-width="10"/><path d="M310 82h128M310 120h128" stroke="#fff" stroke-width="8" opacity=".35"/><rect x="54" y="250" width="176" height="112" rx="24" fill="#fff" stroke="#d4e7ff" stroke-width="6"/><ellipse cx="142" cy="248" rx="72" ry="18" fill="#e8f4ff" stroke="#d4e7ff" stroke-width="4"/><rect x="92" y="190" width="104" height="44" rx="16" fill="#ffd6e8"/><circle cx="112" cy="182" r="16" fill="#ffb3d9"/><circle cx="174" cy="180" r="16" fill="#a8d0ff"/>
+<rect x="52" y="70" width="66" height="112" rx="18" fill="#ffe5a8"/><text x="72" y="138" font-size="42">🧽</text><text x="706" y="128" font-size="54">🫧</text>
+<g opacity=".92" filter="url(#shadow)"><text x="36" y="52" font-family="Fredoka, Nunito, Arial" font-size="22" fill="#5f315c" font-weight="700">Bubble Bath Room</text></g>
 </svg>

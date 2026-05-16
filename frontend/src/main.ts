@@ -11,6 +11,7 @@ import { BedroomScene } from './scenes/BedroomScene';
 import { VetScene } from './scenes/VetScene';
 import { NestScene } from './scenes/NestScene';
 import { OnboardingNestScene } from './scenes/OnboardingNestScene';
+import { MinigamesScene } from './scenes/MinigamesScene';
 
 const config: Phaser.Types.Core.GameConfig = {
   type: Phaser.AUTO,
@@ -35,6 +36,7 @@ const config: Phaser.Types.Core.GameConfig = {
     BedroomScene,
     VetScene,
     NestScene,
+    MinigamesScene,
     HUDScene,
   ],
 };

@@ -1,15 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480">
 <defs>
-  <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFE8D6"/><stop offset="1" stop-color="#FFD1B3"/></linearGradient>
-  <linearGradient id="floor" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#D9A56D"/><stop offset="1" stop-color="#F0D4A8"/></linearGradient>
-  <filter id="soft"><feGaussianBlur stdDeviation="5"/></filter>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffe8d6"/><stop offset="1" stop-color="#ffd6e8"/></linearGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#d9a56d"/><stop offset="1" stop-color="#fff1b8"/></linearGradient>
+  <filter id="shadow"><feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#5f315c" flood-opacity=".16"/></filter>
 </defs>
+<rect width="800" height="480" fill="url(#sky)"/>
+<g opacity=".72" fill="#fff"><ellipse cx="105" cy="74" rx="78" ry="25"/><ellipse cx="150" cy="60" rx="45" ry="22"/><ellipse cx="575" cy="92" rx="86" ry="28"/><ellipse cx="622" cy="78" rx="52" ry="24"/><ellipse cx="365" cy="48" rx="58" ry="18"/></g>
+<path d="M0 300c110-42 205-48 326-10 126 39 258 42 474-8v198H0z" fill="#b8e6d5" opacity=".7"/>
+<path d="M0 360c150-50 278-38 424-4 139 32 250 31 376-8v132H0z" fill="url(#floor)"/>
 
-<rect width="800" height="400" fill="url(#wall)"/><rect y="400" width="800" height="80" fill="url(#floor)"/><path d="M0 400h800" stroke="#C4956A" stroke-width="5"/>
-<rect x="126" y="64" width="148" height="124" rx="12" fill="#B8D8E8" stroke="#B88654" stroke-width="8"/><path d="M200 64v124M126 126h148" stroke="#B88654" stroke-width="4"/><rect x="104" y="55" width="26" height="142" rx="12" fill="#FF8FA0"/><rect x="270" y="55" width="26" height="142" rx="12" fill="#FF8FA0"/>
-<rect x="445" y="284" width="220" height="82" rx="24" fill="#E07B6A" stroke="#C45A4A" stroke-width="4"/><rect x="455" y="244" width="200" height="72" rx="28" fill="#D66B5C"/><ellipse cx="512" cy="314" rx="42" ry="30" fill="#FFD166"/><ellipse cx="596" cy="314" rx="42" ry="30" fill="#7EC8E3"/>
-<ellipse cx="400" cy="424" rx="170" ry="38" fill="#FF6B9D" opacity=".28"/><ellipse cx="400" cy="424" rx="124" ry="25" fill="#FFD166" opacity=".24"/><ellipse cx="400" cy="424" rx="82" ry="16" fill="#7EC8E3" opacity=".25"/>
-<path d="M700 84v108" stroke="#DDD" stroke-width="8"/><path d="M668 86h64l-18-46h-28z" fill="#FFD700" opacity=".9"/><circle cx="700" cy="94" r="54" fill="#FFD700" opacity=".08"/>
-<rect x="368" y="86" width="64" height="48" rx="6" fill="#B8D8E8" stroke="#DDAA66" stroke-width="6"/><path d="M389 116c13-22 29-22 42 0" stroke="#FF6B9D" stroke-width="5" fill="none"/><rect x="462" y="78" width="48" height="40" rx="6" fill="#FFB6C1" stroke="#DDAA66" stroke-width="5"/><path d="M486 88l5 12 13 1-10 8 3 12-11-7-11 7 3-12-10-8 13-1z" fill="#FFF6E9"/>
-
+<rect x="0" y="392" width="800" height="88" fill="#d9a56d"/><g stroke="#c4956a" stroke-width="3" opacity=".6"><path d="M0 414h800M0 444h800"/><path d="M80 392v88M190 392v88M310 392v88M460 392v88M620 392v88"/></g>
+<rect x="86" y="58" width="178" height="146" rx="18" fill="#a8d0ff" stroke="#b88654" stroke-width="10"/><path d="M175 58v146M86 132h178" stroke="#fff" stroke-width="5"/><rect x="62" y="46" width="34" height="174" rx="16" fill="#ff8fa0"/><rect x="254" y="46" width="34" height="174" rx="16" fill="#ff8fa0"/>
+<rect x="420" y="270" width="260" height="96" rx="30" fill="#e07b6a" stroke="#c45a4a" stroke-width="5"/><rect x="438" y="224" width="225" height="88" rx="32" fill="#d66b5c"/><ellipse cx="500" cy="308" rx="45" ry="34" fill="#ffd166"/><ellipse cx="594" cy="308" rx="45" ry="34" fill="#7ec8e3"/><ellipse cx="540" cy="414" rx="185" ry="44" fill="#ff6b9d" opacity=".28"/><ellipse cx="540" cy="414" rx="126" ry="26" fill="#ffd166" opacity=".24"/>
+<rect x="312" y="80" width="80" height="58" rx="8" fill="#b8d8e8" stroke="#ddaa66" stroke-width="7"/><path d="M332 119c18-26 38-26 56 0" stroke="#ff6b9d" stroke-width="6" fill="none"/><rect x="694" y="96" width="62" height="92" rx="20" fill="#d4b8a8"/><circle cx="725" cy="77" r="42" fill="#7bc67e"/><circle cx="696" cy="95" r="27" fill="#66bb6a"/><circle cx="754" cy="97" r="27" fill="#66bb6a"/><rect x="36" y="288" width="96" height="62" rx="20" fill="#e8d4a8" stroke="#d4c4a0" stroke-width="5"/><circle cx="62" cy="286" r="15" fill="#ffb3d9"/><circle cx="94" cy="282" r="18" fill="#a8d0ff"/><rect x="76" y="266" width="14" height="54" rx="6" fill="#ffe5a8"/>
+<g opacity=".92" filter="url(#shadow)"><text x="36" y="52" font-family="Fredoka, Nunito, Arial" font-size="22" fill="#5f315c" font-weight="700">Cozy Bunny Home</text></g>
 </svg>

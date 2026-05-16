@@ -197,7 +197,7 @@ export class HUDScene extends Phaser.Scene {
   }
 
   private createNavigation() {
-    const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
+    const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene', 'MinigamesScene'];
     this.dock = this.add.container(0, 0).setDepth(45);
     this.dockBg = this.add.graphics();
     this.dock.add(this.dockBg);
@@ -210,6 +210,7 @@ export class HUDScene extends Phaser.Scene {
       { room: 'BedroomScene', icon: 'sleep', label: 'Sleep', need: 'energy' },
       { room: 'VetScene', icon: 'medicine', label: 'Vet', need: 'health' },
       { room: 'NestScene', icon: 'seasonSun', label: 'Nest' },
+      { room: 'MinigamesScene', icon: 'minigames', label: 'Games' },
     ];
 
     icons.forEach((item, index) => {
@@ -244,8 +245,9 @@ export class HUDScene extends Phaser.Scene {
   private layoutDock() {
     if (!this.dock || !this.dockBg) return;
     const layout = getLayout(this);
-    const spacing = layout.orientation === 'portrait' ? Math.min(60, (layout.width - layout.safeLeft - layout.safeRight - 32) / 7) : 55;
-    const width = spacing * 7 + 10;
+    const itemCount = this.dockItems.length || 8;
+    const spacing = layout.orientation === 'portrait' ? Math.min(56, (layout.width - layout.safeLeft - layout.safeRight - 32) / itemCount) : 52;
+    const width = spacing * itemCount + 10;
     this.dock.setPosition(layout.width / 2, layout.dockY);
     this.dockBg.clear();
     this.dockBg.fillStyle(palette.plumDeep, 0.16);
@@ -255,7 +257,7 @@ export class HUDScene extends Phaser.Scene {
     this.dockBg.lineStyle(1, palette.white, 0.7);
     this.dockBg.strokeRoundedRect(-width / 2 + 1, -31, width - 2, 60, 19);
     this.dockItems.forEach(({ hit, icon, text, dot, index }) => {
-      const x = -spacing * 3 + index * spacing;
+      const x = -spacing * (this.dockItems.length - 1) / 2 + index * spacing;
       hit.setPosition(x, -2).setSize(layout.dockIconSize, layout.dockIconSize);
       hit.input!.hitArea = new Phaser.Geom.Rectangle(-layout.dockIconSize / 2, -layout.dockIconSize / 2, layout.dockIconSize, layout.dockIconSize);
       icon.setPosition(x, -8).setDisplaySize(26, 26);
@@ -300,7 +302,7 @@ export class HUDScene extends Phaser.Scene {
       this.updateNeedDots(null);
     }
 
-    const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
+    const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene', 'MinigamesScene'];
     const roomNames: Record<string, string> = {
       LivingRoomScene: '🏠 Living Room',
       KitchenScene: '🍳 Kitchen',
@@ -309,6 +311,7 @@ export class HUDScene extends Phaser.Scene {
       BedroomScene: '🌙 Bedroom',
       VetScene: '💊 Vet Office',
       NestScene: '💕 Cozy Nest',
+      MinigamesScene: '🎮 Minigames',
     };
     const activeScenes = this.scene.manager.getScenes(true);
     for (const scene of activeScenes) {
@@ -425,7 +428,7 @@ export class HUDScene extends Phaser.Scene {
   }
 
   private getActiveRoomScene(): Phaser.Scene | null {
-    const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
+    const rooms = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene', 'MinigamesScene'];
     return this.scene.manager.getScenes(true).find(scene => scene !== this && rooms.includes(scene.scene.key)) ?? null;
   }
 
@@ -437,7 +440,7 @@ export class HUDScene extends Phaser.Scene {
   private roomAnnouncement(sceneKey: string): string {
     const names: Record<string, string> = {
       LivingRoomScene: 'Living Room', KitchenScene: 'Kitchen', BathroomScene: 'Bathroom',
-      GardenScene: 'Garden', BedroomScene: 'Bedroom', VetScene: 'Vet Office', NestScene: 'Cozy Nest',
+      GardenScene: 'Garden', BedroomScene: 'Bedroom', VetScene: 'Vet Office', NestScene: 'Cozy Nest', MinigamesScene: 'Bunny Minigames',
     };
     return names[sceneKey] || sceneKey;
   }
