@@ -13,13 +13,14 @@ import { playSample } from '../utils/sampleAudio';
 import { needColors, palette, typography, cssPalette } from '../ui/tokens';
 import { announce, motionDuration, prefersReducedMotion } from '../utils/accessibility';
 import { getLayout, type LayoutContext } from '../ui/layout';
+import { mixedBabyBunnyName } from '../utils/names';
 
 const PLAY_AREA_HEIGHT = 480; // Design baseline; runtime layout may resize it.
 function moveBounds(layout: LayoutContext) {
   return { minX: 60, maxX: layout.width - 60, minY: Math.max(100, layout.playTop + 70), maxY: layout.playBottom - 60 };
 }
 const ARROW_STEP = 14;
-const ROOM_SEQUENCE = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene'];
+const ROOM_SEQUENCE = ['LivingRoomScene', 'KitchenScene', 'BathroomScene', 'GardenScene', 'BedroomScene', 'VetScene', 'NestScene', 'MinigamesScene'];
 
 type StatKey = 'hunger' | 'energy' | 'happiness' | 'cleanliness' | 'health';
 const ACTION_STAT: Partial<Record<CareAction, StatKey>> = {
@@ -80,7 +81,7 @@ export function ensureDemoBunnies() {
     gameBunnies = [
       { id: 'father', name: 'Mochi', color: 'white', pattern: null, stage: 'adult', hunger: 75, happiness: 80, cleanliness: 60, energy: 70, health: 85, isAlive: true, parentAId: null, parentBId: null },
       { id: 'mother', name: 'Luna', color: 'brown', pattern: null, stage: 'adult', hunger: 82, happiness: 88, cleanliness: 76, energy: 64, health: 90, isAlive: true, parentAId: null, parentBId: null },
-      { id: 'baby', name: 'Boba', color: 'pink', pattern: null, stage: 'baby', ...legacyStatsFromNeeds(localNeedsState.needs), isAlive: true, parentAId: 'father', parentBId: 'mother' },
+      { id: 'baby', name: mixedBabyBunnyName('Mochi', 'Luna'), color: 'pink', pattern: null, stage: 'baby', ...legacyStatsFromNeeds(localNeedsState.needs), isAlive: true, parentAId: 'father', parentBId: 'mother' },
     ];
   }
 }
@@ -335,6 +336,38 @@ export abstract class RoomScene extends Phaser.Scene {
       medicine: 'took to the vet',
       breed: 'bred',
     };
+
+    if (action === 'breed') {
+      const mate = gameBunnies.find(x => x.id !== b.id && x.stage === 'adult' && x.isAlive);
+      if (!mate) {
+        addActivity('Need two adult bunnies to breed 💕');
+        announce('Need two adult bunnies to breed');
+        return;
+      }
+      if (!isServerBackedBunny(b) && !isServerBackedBunny(mate) && !gameBunnies.some(x => x.stage === 'egg')) {
+        const babyName = mixedBabyBunnyName(b.name, mate.name);
+        gameBunnies.push({
+          id: `baby-${Date.now().toString(36)}`,
+          name: babyName,
+          color: Math.random() < 0.5 ? b.color : mate.color,
+          pattern: null,
+          stage: 'egg',
+          hunger: 100,
+          happiness: 100,
+          cleanliness: 100,
+          energy: 100,
+          health: 100,
+          isAlive: true,
+          parentAId: b.id,
+          parentBId: mate.id,
+        });
+        this.spawnBunnies();
+        addActivity(`${playerName} helped ${b.name} & ${mate.name} make ${babyName} 🥚💕`);
+        announce(`A new egg appeared. Baby name ${babyName}`);
+      }
+      wsClient.sendAction(action, bunnyId, mate.id);
+      return;
+    }
 
     const serverActionMap: Partial<Record<CareAction, SaveCareAction>> = { feed: 'feed', clean: 'bathe', play: 'play', sleep: 'sleep', medicine: 'vet' };
     const serverAction = serverActionMap[action];

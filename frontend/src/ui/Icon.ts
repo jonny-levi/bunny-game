@@ -13,6 +13,7 @@ export const ICONS = {
   arrowLeft: 'arrow-left.svg',
   arrowRight: 'arrow-right.svg',
   seasonSun: 'season-sun.svg',
+  minigames: 'minigames.svg',
 } as const;
 
 export type IconName = keyof typeof ICONS;

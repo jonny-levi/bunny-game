@@ -1,14 +1,17 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 480">
 <defs>
-  <linearGradient id="wall" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#1A1A3E"/><stop offset="1" stop-color="#3E1E4F"/></linearGradient>
-  <linearGradient id="floor" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#37474F"/><stop offset="1" stop-color="#2A2440"/></linearGradient>
-  <filter id="soft"><feGaussianBlur stdDeviation="5"/></filter>
+  <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#2f3a78"/><stop offset="1" stop-color="#8e7cc3"/></linearGradient>
+  <linearGradient id="floor" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#ffd6e8"/><stop offset="1" stop-color="#fff1b8"/></linearGradient>
+  <filter id="shadow"><feDropShadow dx="0" dy="6" stdDeviation="5" flood-color="#5f315c" flood-opacity=".16"/></filter>
 </defs>
+<rect width="800" height="480" fill="url(#sky)"/>
+<g opacity=".72" fill="#fff"><ellipse cx="105" cy="74" rx="78" ry="25"/><ellipse cx="150" cy="60" rx="45" ry="22"/><ellipse cx="575" cy="92" rx="86" ry="28"/><ellipse cx="622" cy="78" rx="52" ry="24"/><ellipse cx="365" cy="48" rx="58" ry="18"/></g>
+<path d="M0 300c110-42 205-48 326-10 126 39 258 42 474-8v198H0z" fill="#b8e6d5" opacity=".7"/>
+<path d="M0 360c150-50 278-38 424-4 139 32 250 31 376-8v132H0z" fill="url(#floor)"/>
 
-<rect width="800" height="400" fill="url(#wall)"/><g fill="#FFD54F" opacity=".65"><circle cx="5" cy="30" r="1"/><circle cx="78" cy="77" r="2"/><circle cx="151" cy="124" r="3"/><circle cx="224" cy="171" r="1"/><circle cx="297" cy="218" r="2"/><circle cx="370" cy="35" r="3"/><circle cx="443" cy="82" r="1"/><circle cx="516" cy="129" r="2"/><circle cx="589" cy="176" r="3"/><circle cx="662" cy="223" r="1"/><circle cx="735" cy="40" r="2"/><circle cx="18" cy="87" r="3"/><circle cx="91" cy="134" r="1"/><circle cx="164" cy="181" r="2"/><circle cx="237" cy="228" r="3"/><circle cx="310" cy="45" r="1"/><circle cx="383" cy="92" r="2"/><circle cx="456" cy="139" r="3"/><circle cx="529" cy="186" r="1"/><circle cx="602" cy="233" r="2"/><circle cx="675" cy="50" r="3"/><circle cx="748" cy="97" r="1"/><circle cx="31" cy="144" r="2"/><circle cx="104" cy="191" r="3"/><circle cx="177" cy="238" r="1"/><circle cx="250" cy="55" r="2"/><circle cx="323" cy="102" r="3"/><circle cx="396" cy="149" r="1"/><circle cx="469" cy="196" r="2"/><circle cx="542" cy="243" r="3"/><circle cx="615" cy="60" r="1"/><circle cx="688" cy="107" r="2"/><circle cx="761" cy="154" r="3"/><circle cx="44" cy="201" r="1"/><circle cx="117" cy="248" r="2"/><circle cx="190" cy="65" r="3"/></g><circle cx="660" cy="72" r="42" fill="#FFF9C4" opacity=".2"/><circle cx="660" cy="72" r="32" fill="#FFF9C4"/><circle cx="648" cy="64" r="28" fill="#1A1A3E"/>
-<rect y="400" width="800" height="80" fill="url(#floor)"/><ellipse cx="400" cy="430" rx="170" ry="34" fill="#4A148C" opacity=".25"/>
-<rect x="270" y="306" width="260" height="64" rx="12" fill="#F48FB1"/><rect x="258" y="348" width="284" height="28" rx="10" fill="#8D6E63"/><ellipse cx="315" cy="295" rx="54" ry="26" fill="#fff"/><ellipse cx="486" cy="295" rx="54" ry="26" fill="#FCE4EC"/><rect x="280" y="324" width="240" height="34" rx="10" fill="#CE93D8"/>
-<rect x="115" y="288" width="58" height="78" rx="8" fill="#8D6E63"/><path d="M144 288v-40" stroke="#E0E0E0" stroke-width="6"/><ellipse cx="144" cy="238" rx="34" ry="20" fill="#FFD54F" opacity=".76"/>
-<rect x="642" y="138" width="86" height="132" rx="8" fill="#6D4C41"/><g><rect x="660" y="160" width="9" height="40" fill="#FF6B9D"/><rect x="672" y="160" width="9" height="40" fill="#FFD93D"/><rect x="684" y="160" width="9" height="40" fill="#7EC8E3"/><rect x="696" y="160" width="9" height="40" fill="#81C784"/><rect x="708" y="160" width="9" height="40" fill="#CE93D8"/></g><rect width="800" height="480" fill="#000033" opacity=".16"/>
-
+<rect x="0" y="360" width="800" height="120" fill="#d8c2f0"/><g fill="#ffe5a8"><path d="M96 72l7 16 17 2-13 11 4 17-15-9-15 9 4-17-13-11 17-2z"/><path d="M640 64l5 12 13 2-10 8 3 13-11-7-11 7 3-13-10-8 13-2z"/><circle cx="706" cy="124" r="24" opacity=".86"/></g>
+<rect x="86" y="252" width="292" height="108" rx="28" fill="#ffb3d9" stroke="#f08bbd" stroke-width="7"/><rect x="120" y="202" width="226" height="86" rx="32" fill="#ffd6e8"/><ellipse cx="178" cy="250" rx="52" ry="34" fill="#fff6e9"/><ellipse cx="282" cy="250" rx="52" ry="34" fill="#a8d0ff"/><rect x="498" y="186" width="158" height="174" rx="30" fill="#d4b8a8" stroke="#b88654" stroke-width="7"/><rect x="524" y="212" width="106" height="38" rx="14" fill="#ffe5a8"/><rect x="524" y="270" width="106" height="38" rx="14" fill="#ffe5a8"/><circle cx="606" cy="232" r="6" fill="#8b7866"/><circle cx="606" cy="290" r="6" fill="#8b7866"/>
+<rect x="675" y="210" width="44" height="128" rx="15" fill="#ffd166"/><path d="M650 212h94l-24-58h-46z" fill="#ffe5a8"/><circle cx="697" cy="206" r="50" fill="#ffd166" opacity=".14"/>
+<g font-size="48"><text x="410" y="330">🧸</text><text x="42" y="416">🧺</text><text x="725" y="420">⭐</text></g>
+<g opacity=".92" filter="url(#shadow)"><text x="36" y="52" font-family="Fredoka, Nunito, Arial" font-size="22" fill="#5f315c" font-weight="700">Dreamy Bunny Bedroom</text></g>
 </svg>
