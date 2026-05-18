@@ -18,7 +18,7 @@ spec:
       containers:
       - name: backend
         image: 172.20.10.120:5000/bunny-backend:latest
-        imagePullPolicy: Always
+        imagePullPolicy: IfNotPresent
         env:
         - name: DATABASE_URL
           value: postgresql://bunny:bunny123@bunny-postgres:5432/bunny_family
