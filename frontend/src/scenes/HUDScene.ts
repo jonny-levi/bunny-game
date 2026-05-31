@@ -216,7 +216,8 @@ export class HUDScene extends Phaser.Scene {
     icons.forEach((item, index) => {
       const x = -165 + index * 55;
       const hit = this.add.rectangle(x, -1, 48, 48, palette.white, 0.01)
-        .setInteractive({ useHandCursor: true });
+        .setInteractive(new Phaser.Geom.Rectangle(-24, -24, 48, 48), Phaser.Geom.Rectangle.Contains);
+      if (hit.input) hit.input.cursor = 'pointer';
       const icon = addIcon(this, item.icon, x, -7, 24);
       const text = this.add.text(x, 17, item.label, {
         fontFamily: typography.families.body,
@@ -259,7 +260,10 @@ export class HUDScene extends Phaser.Scene {
     this.dockItems.forEach(({ hit, icon, text, dot, index }) => {
       const x = -spacing * (this.dockItems.length - 1) / 2 + index * spacing;
       hit.setPosition(x, -2).setSize(layout.dockIconSize, layout.dockIconSize);
-      hit.input!.hitArea = new Phaser.Geom.Rectangle(-layout.dockIconSize / 2, -layout.dockIconSize / 2, layout.dockIconSize, layout.dockIconSize);
+      if (hit.input) {
+        hit.input.hitArea = new Phaser.Geom.Rectangle(-layout.dockIconSize / 2, -layout.dockIconSize / 2, layout.dockIconSize, layout.dockIconSize);
+        hit.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
+      }
       icon.setPosition(x, -8).setDisplaySize(26, 26);
       text.setPosition(x, 18);
       dot.setPosition(x + 15, -25);
