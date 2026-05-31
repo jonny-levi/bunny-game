@@ -259,7 +259,9 @@ export class HUDScene extends Phaser.Scene {
     this.dockBg.strokeRoundedRect(-width / 2 + 1, -31, width - 2, 60, 19);
     this.dockItems.forEach(({ hit, icon, text, dot, index }) => {
       const x = -spacing * (this.dockItems.length - 1) / 2 + index * spacing;
-      hit.setPosition(x, -2).setSize(layout.dockIconSize, layout.dockIconSize);
+      hit.setPosition(x, -2);
+      hit.displayWidth = layout.dockIconSize;
+      hit.displayHeight = layout.dockIconSize;
       if (hit.input) {
         hit.input.hitArea = new Phaser.Geom.Rectangle(-layout.dockIconSize / 2, -layout.dockIconSize / 2, layout.dockIconSize, layout.dockIconSize);
         hit.input.hitAreaCallback = Phaser.Geom.Rectangle.Contains;
