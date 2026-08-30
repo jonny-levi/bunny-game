@@ -34,7 +34,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
       - name: frontend
-        image: 172.20.10.120:5000/bunny-game:v7-2d
+        image: 172.20.10.29:5000/bunny-game:v7-2d
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
